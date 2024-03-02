@@ -62,25 +62,20 @@ class Signature:
         return vs_label,vs_data
     
     def write_vsfile(self,output,threshold=0,i=2):
-        
+        tab = "\t"
         with open (output,"w") as tsv:
-            tsv.write("interval\t" + '\t'.join(self.vs_label)  + "\n")
+            tsv.write(f"interval\t{tab.join(self.vs_label)}\n")
             for interval,data in self.vs_data.items():
-                if float(data[i]) > threshold:
-                    tsv.write('\t'.join([interval]+data) + "\n")
-
-
-
-
-    #def get_events(self,vs_data,i,cutoff=0.05):
-    #    events = {}
-    #    for event,data in vs_data.items():
-    #        if data[i] < cutoff:
-    #            events.add(event)
-    #    return events
+                if float(data[i]) <= threshold:
+                    tsv.write(f"{interval}\t{tab.join(str(x) for x in data)}\n")
     
-    def fit_beta(self,ps_filename,events):
-        self.beta = Beta(self,ps_filename,events)
+    def fit_beta(self,ps_filename):
+        self.beta = Beta(self,ps_filename)
+        self.vs_label.extend(["alpha1","beta1","alpha2","beta2"])
+        for interval,data in self.vs_data.items():
+            data.extend([self.beta.alphas[0][interval],self.beta.betas[0][interval],
+                         self.beta.alphas[1][interval],self.beta.betas[1][interval]])
+        
 
 class Beta:
 
@@ -97,9 +92,9 @@ class Beta:
         else:
             self.floc = -0.001
             self.fscale = 1.002
-        self.alphas,self.betas,self.medians = self.fit_betas(ps_filename,self.sig.events,self.sig.groups)
+        self.alphas,self.betas,self.medians = self.fit_betas(ps_filename,self.sig.groups)
         
-    def fit_betas(self,ps_filename,events,groups):
+    def fit_betas(self,ps_filename,groups):
         alphas = {gp:{} for gp in (0,1)}
         betas = {gp:{} for gp in (0,1)}
         medians = {gp:{} for gp in (0,1)}
@@ -109,23 +104,23 @@ class Beta:
             for gp in (0,1):
                 pos[gp] = [i for i,name in enumerate(header) if name in groups[gp]]
             for line in tsv:
-                row = line.rstrip().split("t")
-                event = row[0]
-                if event in events:
+                row = line.rstrip().split("\t")
+                interval = row[0]
+                if True:
                     for gp in (0,1):
                         values = [float(row[i]) for i in pos[gp] if row[i] != "nan"]
                         if len(values) == 0:
                             continue
-                        median = median(values)
+                        median = np.median(values)
                         if self.exclude:
                             values = [x for x in values if x != 0 and x != 1]
                         try:
                             a,b,l,s = stats_beta.fit(values,floc=self.floc,fscale=self.fscale)
                         except:
                             a,b,l,s = None,None,None,None 
-                        alphas[gp][event] = a
-                        betas[gp][event] = b
-                        median[gp][event] = median
+                        alphas[gp][interval] = a
+                        betas[gp][interval] = b
+                        medians[gp][interval] = median
         return alphas,betas,medians
 
     def probability(self,event,gp,x):
@@ -300,10 +295,10 @@ def main():
     if args.annotation_gtf:
         signature.add_annotation(Annotation(args.annotation_gtf))
     if mode == "compare":
-        signature.write_vsfile(args.output,cutoff = args.threshold)
+        signature.write_vsfile(args.output_prefix,threshold = args.threshold)
     elif mode == "fit_beta":
         signature.fit_beta(args.ps_table)
-        signature.write_vsfile(args.output,)
+        signature.write_vsfile(args.output_prefix,threshold = args.threshold)
     elif mode == "query":
         if not signature.beta:
             print("VS Table does not contain beta distribution parameters. Run fit_beta method with original PS table. Exiting...")
