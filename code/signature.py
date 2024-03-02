@@ -24,7 +24,7 @@ class Signature:
         #i_label = {x:i for i,x in self.vs_label}
         #self.events = self.get_events(self.vs_data,i=i_label["pvalue"])
 
-    def compare(self,ps_file,sample_group,control_g tyui yroup):
+    def compare(self,ps_file,sample_group,control_group):
         with open(ps_file) as tsv:
             names = tsv.readline().rstrip().split("\t")
             sample_indices = [i for i,x in enumerate(names) if x in sample_group]
@@ -80,9 +80,7 @@ class Signature:
 
         for interval,ps_vals in ps_table.get_rows():
             for val in ps_vals:
-                
-class Groups(dict):
-    def __init__(self,groups):
+                pass
         
 class SignatureSet:
 
@@ -130,6 +128,18 @@ class SignatureSet:
 
 class Betas:
 
+    @staticmethod
+    def cdf(x,m,a,b,loc=-0.001,scale=1.002):
+        if x == m:
+            return 1
+        else:
+            if x > m:
+                return 1 - stats_beta.cdf(x,a,b,loc=loc,scale=scale)
+            else:
+                return stats_beta.cdf(x,a,b,loc=loc,scale=scale)
+
+    
+
     from scipy.stats import beta as stats_beta
 
     def __init__(self,ps_table,samples,intervals,exclude_zero_ones=False):
@@ -139,11 +149,11 @@ class Betas:
         
         self.exclude = exclude_zero_ones
         if self.exclude:
-            self.floc = 0
-            self.fscale = 1
+            self.loc = 0
+            self.scale = 1
         else:
-            self.floc = -0.001
-            self.fscale = 1.002
+            self.loc = -0.001
+            self.scale = 1.002
 
         
         self.alphas,self.betas,self.medians = self.fit_betas(self.sig.groups)
@@ -161,7 +171,7 @@ class Betas:
                 if self.exclude:
                     values = [x for x in values if x != 0 and x != 1]
                 try:
-                    a,b,l,s = stats_beta.fit(values,floc=self.floc,fscale=self.fscale)
+                    a,b,l,s = stats_beta.fit(values,floc=self.loc,fscale=self.scale)
                 except:
                     a,b,l,s = None,None,None,None 
                 alphas[group][interval] = a
@@ -169,21 +179,13 @@ class Betas:
                 medians[group][interval] = median
         return alphas,betas,medians
 
-    def probability(self,event,gp,x):
-        
-        
+    def query(self,group,event):
+        return (self.medians[group][event],self.alphas[group][event],self.betas[group][event])
         
 
 
 
-    
-    def query(self,ps_values):
-        
-        pvals = {}    
-        for interval,row in ps_table.get_rows():
-            if interval not in self.intervals:
-                continue
-            for group in self.samples.groups:
+
 
                 m = self.medians[group][event]
                 if x == m:
@@ -192,13 +194,10 @@ class Betas:
                     a = self.alphas[group][event]
                     b = self.betas[group][event]
                     if x > m:
-                        p = 1 - stats_beta.cdf(val,a,b,loc=self.floc,scale=self.fscale)
+                        p = 1 - stats_beta.cdf(val,a,b,loc=self.loc,scale=self.scale)
                     else:
-                        p = stats_beta.cdf(val,a,b,loc=self.floc,scale=self.fscale)
-                P.append(p)
-                
-        
-        return pvals
+                        p = stats_beta.cdf(val,a,b,loc=self.loc,scale=self.scale)
+
     
 
 
