@@ -202,34 +202,80 @@ class Betas:
     
 
 
-    def get_pval(self,events,values):
+# functions for read_function,row_function,out_function
+def yield_rows(filename):
+    with open(filename) as tsv:
+        for line in tsv:
+            row = line.rstrip().split("\t")
+            yield (row[0],row[1:])
 
-        probabilities = {gp:[] for gp in (0,1)}
-        for event,value in zip(events,values):
-            for gp in (0,1):
-                probabilities[gp].append(self.probability(event,gp,value))
-                
-        pval = ranksums(probabilities[0],probabilities[1],alternative="greater").pvalue
-        return pval
+def gz_yield_rows(filename):
+    import gzip
+    with gzip.open(filename) as tsv:
+        for line in tsv:
+            row = line.decode().rstrip().split("\t")
+            yield (row[0],row[1:])
 
-    def get_all_pvals(self,ps_table):
-        """
-        zip(ps_table.values,ps_table.names)
-                    
-        pvals = {}
-        for name,values in zip(header[1:],ps_values):
-            pvals[name] = self.get_pval(events,values)
+#### ####
+#### Multiprocessing
 
+import multiprocessing
+class MultiReader:
+    def __init__(self,filename,read_function,row_function,collect_function,out_function,n_threads=3):
+        if n_threads < 3:
+            return None
+        import multiprocessing
+        self.n = n_threads
+        buffer_ratio = 10
+        with multiprocessing.Manager() as manager:
+            q1 = manager.Queue(maxsize = self.n * buffer_ratio)
+            q2 = manager.Queue()
+            o = manager.list()
+            self.read_and_do(read_function,filename,q1,row_function,q2,collect_function,o)
+            self.out = out_function(o)
+        return None
+            
+    def get(self):
+        return self.out
+            
+    def reader(self,read_function,filename,q):
+        for item in read_function(filename):
+                q.put(item)
+        for i in range(self.n):
+            q.put("DONE")
+        return None
 
-        from multiprocessing import Pool
+    def do_rows(self,q,f,o):
+        while True:
+            item = q.get()
+            if item == "DONE":
+                break
+            o.put(f(item))
+        return None
     
-        n_threads = 8
-        with Pool(n_threads) as pool:
-            for result in pool.imap(self.get_pval,ps_values):
-                name,pval = result
-                pvals[name] = pval
-        """
+    def collect_rows(self,q,f,o):
+        while True:
+            item = q.get()
+            if item == "DONE":
+                break
+            f(item,o)
+        return None
 
+    def read_and_do(self,read_function,filename,q1,row_function,q2,collect_function,o):
+        read_process = multiprocessing.Process(target=self.reader,args=(read_function,filename,q1))
+        read_process.start()
+        pool = [multiprocessing.Process(target=self.do_rows,args=(q1,row_function,q2)) for n in range(self.n-2)] 
+        for p in pool:
+            p.start()
+        out_process = multiprocessing.Process(target=self.collect_rows,args=(q2,collect_function,o))
+        for p in pool:
+            p.join()
+        read_process.join()
+        q2.put("DONE")
+        out_process.join()
+        return None
+    
+#### Manifest parsing
 def parse_manifest(manifest):
     if manifest:
         with open(manifest) as file:
