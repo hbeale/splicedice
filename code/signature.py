@@ -24,7 +24,7 @@ class Signature:
         #i_label = {x:i for i,x in self.vs_label}
         #self.events = self.get_events(self.vs_data,i=i_label["pvalue"])
 
-    def compare(self,ps_file,sample_group,control_group):
+    def compare(self,ps_file,sample_group,control_g tyui yroup):
         with open(ps_file) as tsv:
             names = tsv.readline().rstrip().split("\t")
             sample_indices = [i for i,x in enumerate(names) if x in sample_group]
@@ -75,16 +75,68 @@ class Signature:
         for interval,data in self.vs_data.items():
             data.extend([self.beta.alphas[0][interval],self.beta.betas[0][interval],
                          self.beta.alphas[1][interval],self.beta.betas[1][interval]])
+
+    def query(self,ps_table):
+
+        for interval,ps_vals in ps_table.get_rows():
+            for val in ps_vals:
+                
+class Groups(dict):
+    def __init__(self,groups):
+        
+class SignatureSet:
+
+    def __init__(self,signatures=None,base_signature=None):
+        if signatures and base_signature:
+            self.signatures = [control] + signatures
+        elif signatures:
+            self.signatures = [None] + signatures
+        elif base_signature:
+            self.signatures = [base_signature]
+        else:
+            self.signatures = [None]
+
+
+    def compare(self,ps_table,groups):
+        vs_data = {}
+        vs_label = []
+
+        group_list = list(groups.keys())
+        g0 = group_list[0]
+        group_list = group_list[1:]
+
+        vs_label = [f"median_{g0}",f"mean_{g0}"]
+        for g in group_list:
+            vs_label.extend((f"median_{g}",f"mean_{g}",f"ranksums_p_{g}"))
+
+        for interval,row in ps_table.get_rows():
+            nan_check = np.isnan(row)
+            g0_values = [row[i] for i in groups[g0] if not nan_check[i]]
+            if len(g0_values) < 3:
+                continue
+            vs_data[interval] = [np.median(g0_values),np.mean(g0_values)]
+            for group in group_list:
+                ps_values = [row[i] for i in positions if not nan_check[i]]
+                if len(ps_values) < 3:
+                    vs_data[interval].extend((None,None,None))
+                    continue
+                D,pval = ranksums(ps_values,g0_values)
+                vs_data[interval].extend((np.median(ps_values),np.mean(ps_values),pval))
+        return vs_label,vs_data
+            
+            
+        
         
 
-class Beta:
+class Betas:
 
     from scipy.stats import beta as stats_beta
 
-    def __init__(self,signature,ps_filename,exclude_zero_ones=False):
+    def __init__(self,ps_table,samples,intervals,exclude_zero_ones=False):
 
-        self.sig = signature
-        self.ps_filename = ps_filename   
+        self.ps_table = ps_table  
+        self.samples = samples
+        
         self.exclude = exclude_zero_ones
         if self.exclude:
             self.floc = 0
@@ -92,49 +144,62 @@ class Beta:
         else:
             self.floc = -0.001
             self.fscale = 1.002
-        self.alphas,self.betas,self.medians = self.fit_betas(ps_filename,self.sig.groups)
+
         
-    def fit_betas(self,ps_filename,groups):
-        alphas = {gp:{} for gp in (0,1)}
+        self.alphas,self.betas,self.medians = self.fit_betas(self.sig.groups)
+        
+    def fit_betas(self,ps_table,samples,intervals):
+        alphas = {group:{} for group in samples.groups}
         betas = {gp:{} for gp in (0,1)}
         medians = {gp:{} for gp in (0,1)}
-        with open(ps_filename) as tsv:
-            header = tsv.readline().rstrip().split("\t")
-            pos = {}
-            for gp in (0,1):
-                pos[gp] = [i for i,name in enumerate(header) if name in groups[gp]]
-            for line in tsv:
-                row = line.rstrip().split("\t")
-                interval = row[0]
-                if True:
-                    for gp in (0,1):
-                        values = [float(row[i]) for i in pos[gp] if row[i] != "nan"]
-                        if len(values) == 0:
+        for interval,row_by_group in ps_table.get_rows_by_group(samples,intervals):
+            for group,row in row_by_group:
+                values = [float(ps) for ps in row if ps != "nan"]
+                if len(values) == 0:
                             continue
-                        median = np.median(values)
-                        if self.exclude:
-                            values = [x for x in values if x != 0 and x != 1]
-                        try:
-                            a,b,l,s = stats_beta.fit(values,floc=self.floc,fscale=self.fscale)
-                        except:
-                            a,b,l,s = None,None,None,None 
-                        alphas[gp][interval] = a
-                        betas[gp][interval] = b
-                        medians[gp][interval] = median
+                median = np.median(values)
+                if self.exclude:
+                    values = [x for x in values if x != 0 and x != 1]
+                try:
+                    a,b,l,s = stats_beta.fit(values,floc=self.floc,fscale=self.fscale)
+                except:
+                    a,b,l,s = None,None,None,None 
+                alphas[group][interval] = a
+                betas[group][interval] = b
+                medians[group][interval] = median
         return alphas,betas,medians
 
     def probability(self,event,gp,x):
-        a = self.alphas[gp][event]
-        b = self.betas[gp][event]
-        med = self.medians[gp][event]
         
-        if x == med:
-            p = 1
-        elif x > med:
-            p = 1 - stats_beta.cdf(x,a,b,loc=self.floc,scale=self.fscale)
-        elif x < med:
-            p = stats_beta.cdf(x,a,b,loc=self.floc,scale=self.fscale)
-        return p
+        
+        
+
+
+
+    
+    def query(self,ps_values):
+        
+        pvals = {}    
+        for interval,row in ps_table.get_rows():
+            if interval not in self.intervals:
+                continue
+            for group in self.samples.groups:
+
+                m = self.medians[group][event]
+                if x == m:
+                    p = 1
+                else:
+                    a = self.alphas[group][event]
+                    b = self.betas[group][event]
+                    if x > m:
+                        p = 1 - stats_beta.cdf(val,a,b,loc=self.floc,scale=self.fscale)
+                    else:
+                        p = stats_beta.cdf(val,a,b,loc=self.floc,scale=self.fscale)
+                P.append(p)
+                
+        
+        return pvals
+    
 
 
     def get_pval(self,events,values):
