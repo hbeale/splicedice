@@ -6,6 +6,8 @@ from statsmodels.stats.multitest import multipletests
 ## splicedice code imports
 from annotation import Annotation
 
+#### ####               #### ####
+     #### Table class
 
 class Table:
     def __init__(self,filename=None,intervals=None,samples=None,data=None,store=None):
@@ -14,33 +16,23 @@ class Table:
             self.samples = samples
             self.intervals = intervals
             self.data = data
-        elif filename and store:
-            self.samples,self.intervals,self.data = load_from_file.read_table(filename)
+        # elif filename and store:
+        #     self.samples,self.intervals,self.data = load_from_file.read_table(filename)
         else:
             self.filename = filename
             self.samples = None
             self.intervals = None
             self.data = None
 
-    def load_from_file(self,filename):
-        with open(filename) as tsv:
-            samples = tsv.readline().rstrip().split("\t")[1:]
-            intervals = []
-            data = []
-            for line in tsv:
-                row = line.rstrip().split("\t")
-                intervals.append(row[0])
-                data.append([float(x) for x in row[1:]])
-            intervals = Intervals(intervals)
-        return samples,intervals,data
 
-    def write_table(self,out_filename):
-        with open(out_filename,'w') as tsv:
-            tab = "\t"
-            tsv.write(f"splice_interval\t{tab.join(self.samples.samples)}\n")
-            for interval,row in zip(self.intervals.intervals,self.data):
-                tsv.write(f"{interval}\t{tab.join(str(val) for val in row)}\n")
-        return None
+
+    # def write_table(self,out_filename):
+    #     with open(out_filename,'w') as tsv:
+    #         tab = "\t"
+    #         tsv.write(f"splice_interval\t{tab.join(self.samples.samples)}\n")
+    #         for interval,row in zip(self.intervals.intervals,self.data):
+    #             tsv.write(f"{interval}\t{tab.join(str(val) for val in row)}\n")
+    #     return None
     
     # def read_table_filter(self,table_file,intervals):
     #     interval_set = set(intervals)
@@ -117,25 +109,26 @@ class Table:
             for name,group in self.samples.groups.items():
                 yield (name,interval,[self.data[i][j] for j in group])
 
-
-#### ####
+#### ####               #### ####
     #### Samples class
+                
 class Samples(list):
 
-    def __init__(self,manifest=None,control_group=None,man1=None,man2=None,samples=[],groups={}):
+    def __init__(self,manifest=None,control_name=None,man1=None,man2=None,samples=[],groups={}):
+        self.control_name = control_name
         if manifest:
             samples,self.groups = self.parse_manifest(manifest)
-            self.control_group = control_group
         elif man1 and man2:
             samples,self.groups = self.parse_manifests(man1,man2)
-            self.control_group = "2"
+            self.control_name = "2"
         elif groups or samples:
             self.groups = groups
-            self.control_group = control_group
         else:
             return None
         list.init(self,samples)
         self.index = {sample:i for i,sample in enumerate(self.samples)}
+
+        sample_groups = {k:v for k,v in self.groups.items() if k!=self.control_name}
 
     def parse_manifest(self,manifest):
         with open(manifest) as file:
@@ -148,6 +141,8 @@ class Samples(list):
                     groups[row[1]].append(i)
                 else:
                     groups[row[1]] = [i]
+                    if not self.control_name:
+                        self.control_name = row[1]
         return samples,groups
     
     def parse_manifests(self,man1,man2):
@@ -164,9 +159,7 @@ class Samples(list):
                 samples.append(row[0])
                 groups["2"].append(i+1+j) #index in samples list
         return samples,groups
-    ####
-
-    
+ 
     # def combine(self,other):
     #     for sample in other.samples:
     #         if sample in self.index:
@@ -177,11 +170,9 @@ class Samples(list):
     #     new_samples = self.samples + other.samples
     #     return Samples(samples=new_samples,groups=new_groups)
     
-
-            
-
-#### #### 
+#### ####               #### ####
     #### Intervals class
+
 class Intervals(list):
 
     @staticmethod
@@ -281,9 +272,10 @@ class Intervals(list):
                 contigs[contig] = sorted(set(self.contigs[contig]).intersection(set(other.contigs[contig])))
         return Intervals(contigs=contigs)
 
-#### ####
+#### ####               #### ####
 #### Signature class
 from scipy.stats import ranksums
+
 class Signature:
 
     def __init__(self,vs_file=None,ps_table=None):   #ps_file=None,sample_group=[],control_group=[]):
@@ -297,112 +289,126 @@ class Signature:
             self.ps_table = ps_table
             self.vs_label,self.vs_data = None,None
 
-
-#        self.beta = None
-        
-        # Select events with a cutoff
-        #i_label = {x:i for i,x in self.vs_label}
-        #self.events = self.get_events(self.vs_data,i=i_label["pvalue"])
-    def multi_compare():
-        if n_threads < 3:
-            return None
-        import multiprocessing
-        self.n = n_threads
-        buffer_ratio = 10
-        with multiprocessing.Manager() as manager:
-            q1 = manager.Queue(maxsize = self.n * buffer_ratio)
-            q2 = manager.Queue()
-            o = manager.list()
-            self.read_and_do(read_function,q1,row_function,q2,collect_function,o,out_function)
-            self.out = out_function(o)
+    def write_vsfile(self,output_prefix):
+        tab = "\t"
+        with open (f"{output_prefix}.sig.tsv","w") as tsv:
+            tsv.write(f"splice_interval\t{tab.join(self.vs_label)}\n")
+            for interval,data in self.vs_data.items():
+                tsv.write(f"{interval}\t{tab.join(str(x) for x in data)}\n")
+    
+    def compare(self,ps_table,samples=None):
+        if not samples:
+            samples = ps_table.samples
+        vs_data = {}
+        vs_label = [f"median_{samples.control_name}",f"mean_{samples.control_name}"]
+        for group in samples.sample_groups.keys():
+            vs_label.extend([f"median_{group}",f"mean_{group}",f"ranksums_p_{group}"])
+        for interval,row in ps_table.get_rows(dtype="arrays"):
+            nan_check = [np.isnan(x) for x in row]
+            control_values = [row[i] for i in samples.control_group if not nan_check[i]]
+            if len(control_values) < 3:
+                continue
+            vs_data[interval] = [np.median(control_values),np.mean(control_values)]
+            for group in samples.sample_groups:
+                ps_values = [row[i] for i in group if not nan_check[i]]
+                if len(ps_values) < 3:
+                    vs_data[interval].extend([np.median(ps_values),np.mean(ps_values),None])
+                    continue
+                D,pval = ranksums(ps_values,control_values)
+                vs_data[interval].extend([np.median(ps_values),np.mean(ps_values),pval])
+        self.vs_label = vs_label
+        self.vs_data = vs_data
         return None
 
-    def compare(self,control=None):
-        vs_data = {}
-        vs_label = ["median1","median2","pvalue","mean1","mean2"]
+    def fit_betas(self):
+        pass
 
+    
+    #     vs_data = {}
+    #     vs_label = ["median1","median2","pvalue","mean1","mean2"]
+
+    
     
 
 
+    #     """with open(ps_file) as tsv:
+    #         names = tsv.readline().rstrip().split("\t")
+    #         sample_indices = [i for i,x in enumerate(names) if x in sample_group]
+    #         control_indices = [i for i,x in enumerate(names) if x in control_group]
+    #         vs_data = {}
+    #         vs_label = ["median1","median2","pvalue","mean1","mean2"]
+    #         for line in tsv:
+    #             row = line.rstrip().split("\t")
+    #             interval = row[0]
+    #             sig = [float(row[i]) for i in sample_indices if row[i] != "nan"]
+    #             con = [float(row[i]) for i in control_indices if row[i] != "nan"]
+    #             if len(sig) < 3 or len(con) < 3:
+    #                 continue # default values????
+    #             D,pval = ranksums(sig,con)
+    #             median_sample = np.median(sig)
+    #             median_control = np.median(con)
+    #             mean_sample = np.mean(sig)
+    #             mean_control = np.mean(con)
+    #             vs_data[interval] = [median_sample,median_control,pval,
+    #                                  mean_sample,mean_control]"""
+    #     return vs_label,vs_data
 
-        """with open(ps_file) as tsv:
-            names = tsv.readline().rstrip().split("\t")
-            sample_indices = [i for i,x in enumerate(names) if x in sample_group]
-            control_indices = [i for i,x in enumerate(names) if x in control_group]
-            vs_data = {}
-            vs_label = ["median1","median2","pvalue","mean1","mean2"]
-            for line in tsv:
-                row = line.rstrip().split("\t")
-                interval = row[0]
-                sig = [float(row[i]) for i in sample_indices if row[i] != "nan"]
-                con = [float(row[i]) for i in control_indices if row[i] != "nan"]
-                if len(sig) < 3 or len(con) < 3:
-                    continue # default values????
-                D,pval = ranksums(sig,con)
-                median_sample = np.median(sig)
-                median_control = np.median(con)
-                mean_sample = np.mean(sig)
-                mean_control = np.mean(con)
-                vs_data[interval] = [median_sample,median_control,pval,
-                                     mean_sample,mean_control]"""
-        return vs_label,vs_data
-
-    def add_annotation(self,annotation):
-        if "gene" in self.vs_label:
-            return None
+    # def add_annotation(self,annotation):
+    #     if "gene" in self.vs_label:
+    #         return None
         
 
-    def read_vsfile(self,vs_filename):
-        vs_data = {}
-        with open(vs_filename) as tsv:
-            vs_label = tsv.readline().rstrip().split("\t")[1:]
-            for line in tsv:
-                row = line.rstrip().split()
-                vs_data[row[0]] = row[1:]
-        return vs_label,vs_data
+    # def read_vsfile(self,vs_filename):
+    #     vs_data = {}
+    #     with open(vs_filename) as tsv:
+    #         vs_label = tsv.readline().rstrip().split("\t")[1:]
+    #         for line in tsv:
+    #             row = line.rstrip().split()
+    #             vs_data[row[0]] = row[1:]
+    #     return vs_label,vs_data
     
-    def write_vsfile(self,output,threshold=0,i=2):
-        tab = "\t"
-        with open (output,"w") as tsv:
-            tsv.write(f"interval\t{tab.join(self.vs_label)}\n")
-            for interval,data in self.vs_data.items():
-                if float(data[i]) <= threshold:
-                    tsv.write(f"{interval}\t{tab.join(str(x) for x in data)}\n")
+    # def write_vsfile(self,output,threshold=0,i=2):
+    #     tab = "\t"
+    #     with open (output,"w") as tsv:
+    #         tsv.write(f"interval\t{tab.join(self.vs_label)}\n")
+    #         for interval,data in self.vs_data.items():
+    #             if float(data[i]) <= threshold:
+    #                 tsv.write(f"{interval}\t{tab.join(str(x) for x in data)}\n")
     
-    def fit_beta(self,ps_filename):
-        self.beta = Beta(self,ps_filename)
-        self.vs_label.extend(["alpha1","beta1","alpha2","beta2"])
-        for interval,data in self.vs_data.items():
-            data([self.beta.alphas[0][interval],self.beta.betas[0][interval],
-                         self.beta.alphas[1][interval],self.beta.betas[1][interval]])
+    # def fit_beta(self,ps_filename):
+    #     self.beta = Beta(self,ps_filename)
+    #     self.vs_label.extend(["alpha1","beta1","alpha2","beta2"])
+    #     for interval,data in self.vs_data.items():
+    #         data([self.beta.alphas[0][interval],self.beta.betas[0][interval],
+    #                      self.beta.alphas[1][interval],self.beta.betas[1][interval]])
     
-    def mab_params(self,group,interval):
-        return (self.beta.alphas[group][interval],
-                self.beta.betas[group][interval])
+    # def mab_params(self,group,interval):
+    #     return (self.beta.alphas[group][interval],
+    #             self.beta.betas[group][interval])
 
    
 
-    ## Set of functions for use by MultiReader
-    def query_row(self,row):
-        interval,values = row
-        probabilities = {}
-        for group in self.groups:
-            probabilities[group] = []
-            m,a,b = self.mab_params(group,interval)
-            for x in values:
-                probabilities[group].append(Betas.cdf(x,m,a,b,self.beta.loc,self.beta.scale))
-        return probabilities
+    # ## Set of functions for use by MultiReader
+    # def query_row(self,row):
+    #     interval,values = row
+    #     probabilities = {}
+    #     for group in self.groups:
+    #         probabilities[group] = []
+    #         m,a,b = self.mab_params(group,interval)
+    #         for x in values:
+    #             probabilities[group].append(Betas.cdf(x,m,a,b,self.beta.loc,self.beta.scale))
+    #     return probabilities
 
-    def gather_probabilities(self,item,out_list):
-        for i,values in enumerate(item):
-            for j,x in enumerate(values):
-                out_list[i][j].append(x)
+    # def gather_probabilities(self,item,out_list):
+    #     for i,values in enumerate(item):
+    #         for j,x in enumerate(values):
+    #             out_list[i][j].append(x)
 
-    def write_pvals(self,out_list):
-        control_probabilities = out_list[0]
-        for values in out_list[1:]:
-            for probabilities in values:
-                D,pval = ranksums(probabilities,control_probabilities)
+    # def write_pvals(self,out_list):
+    #     control_probabilities = out_list[0]
+    #     for values in out_list[1:]:
+    #         for probabilities in values:
+    #             D,pval = ranksums(probabilities,control_probabilities)
 
 
 
@@ -434,8 +440,10 @@ class Signature:
                 vs_data[interval].extend((np.median(ps_values),np.mean(ps_values),pval))
         return vs_label,vs_data
 
+#### ####               #### ####
+#### #### Beta distribution
+from scipy.stats import beta as stats_beta
 
-from scipy.stats import beta as stats_beta              
 class Betas:
 
     @staticmethod
@@ -505,10 +513,10 @@ def gz_yield_rows(filename):
             row = line.decode().rstrip().split("\t")
             yield (row[0],row[1:])
 
-#### ####
+#### ####               #### ####
 #### Multiprocessing
-
 import multiprocessing
+
 class MultiReader:
     def __init__(self,read_function,row_function,collect_function,out_function,n_threads=3):
         if n_threads < 3:
@@ -576,6 +584,7 @@ def get_parser():
                         help="Filename and path for .ps.tsv file, output from MESA.")
     parser.add_argument("-v","--vs_table",default=None,
                         help="Filename and path for .sig.tsv file, previously output from splicedice.")
+    
     parser.add_argument("-a","--annotation",default=None
                         help="GTF or splice_annotation.tsv file with gene annotation (optional for labeling/filtering)")
     parser.add_argument("-m","--manifest",
@@ -590,22 +599,22 @@ def get_parser():
                         help = "Path and file prefix for the output file. '.sig.tsv' or '.match.tsv' will be appended to prefix.")
     parser.add_argument("-c","--config_file",default=None,
                         help = "Optional. For adjusting parameters of splicing analysis.")
-    parser.add_argument("-ctrl","--control",default=None,
+    parser.add_argument("-ctrl","--control_name",default=None,
                         help="Sample group label that represents control for comparative analysis.")
     parser.add_argument("-n","--n_threads",default=1,
                         help="Maximum number of processes to use at the same time.")
     
     return parser
      
-
+# Import config reader and default configs
 from .config import get_config
 
+# Function to check for appropriate input specs
 def check_args_and_config(args,config):
     if args.mode == "compare":
         if not args.ps_table:
             exit()
         if not ((args.manifest and args.control) or (args.manifest1 and args.manifest2)):
-            
             exit()
     elif args.mode == "fit_beta":
         return True
@@ -613,6 +622,7 @@ def check_args_and_config(args,config):
         return True
     return True
 
+# Main
 def main():
     # Arguments and configuration specifications
     args = get_parser().parse_args()
@@ -621,58 +631,30 @@ def main():
 
     #### ####
     #### Initiating objects with files
-
     if args.manifest:
-        samples = Samples(manifest=args.manifest,c_label=args.control)
+        samples = Samples(manifest=args.manifest,control=args.control_name)
     elif args.manifest1 and args.manifest2:
         samples = Samples(man1=args.manifest1, man2=args.manifest2)
-    
     if args.ps_table:
         ps_table = Table(filename=ps_table,store=None)
-
     if args.vs_table:
         signature = Signature(vs_table=args.vs_table)
     else:
         signature = Signature(ps_table=ps_table,samples=samples)
-
     if args.annotation:
         annotation = Annotation(filename=args.annotation)
 
-
-    
+    # Execute the specified mode
     if args.mode == "compare":
-        signature.compare()
-        signature.write_vsfile()
+        signature.compare(samples)
+        signature.write_vsfile(args.output_prefix)
 
     elif args.mode == "fit_beta":
-        signature.fit_betas()
+        signature.fit_betas(samples)
         signature.write_vsfile()
 
     elif args.mode == "query":
-        signature.query(ps_table)
-
-
-
-    # Loading vs_table or ps_table.
-    if args.vs_table:
-        signature = Signature(vs_file=args.vs_table)
-    if args.ps_table:
-        signature = Signature(ps_table=ps_table,samples=samples)
-    else:
-        print("PS table or previous comparison table is required. Exiting...")
-        exit()
-
-    if mode == "compare":
-        signature.write_vsfile(args.output_prefix,threshold = args.threshold)
-    elif mode == "fit_beta":
-        signature.fit_beta(args.ps_table)
-        signature.write_vsfile(args.output_prefix,threshold = args.threshold)
-    elif mode == "query":
-        if not signature.beta:
-            print("VS Table does not contain beta distribution parameters. Run fit_beta method with original PS table. Exiting...")
-            exit()
-        signature.query(args.ps_table,samples)
-        
+        signature.query_and_write(ps_table)
 
 if __name__=="__main__":
     main()
