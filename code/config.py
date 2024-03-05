@@ -1,5 +1,13 @@
 default_config = {
-    "":""
+    "signifiance_threshold":0.05,
+    "beta_exclude_01s":False,
+    "":"",
+    "":"",
+    "":"",
+    "":"",
+    "":"",
+    "":"",
+
 }
 
 def get_config(filename=None):

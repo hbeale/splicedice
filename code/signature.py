@@ -15,14 +15,14 @@ class Table:
             self.intervals = intervals
             self.data = data
         elif filename and store:
-            self.samples,self.intervals,self.data = self.read_table(filename)
+            self.samples,self.intervals,self.data = load_from_file.read_table(filename)
         else:
             self.filename = filename
             self.samples = None
             self.intervals = None
             self.data = None
 
-    def read_table(self,filename):
+    def load_from_file(self,filename):
         with open(filename) as tsv:
             samples = tsv.readline().rstrip().split("\t")[1:]
             intervals = []
@@ -303,14 +303,25 @@ class Signature:
         # Select events with a cutoff
         #i_label = {x:i for i,x in self.vs_label}
         #self.events = self.get_events(self.vs_data,i=i_label["pvalue"])
+    def multi_compare():
+        if n_threads < 3:
+            return None
+        import multiprocessing
+        self.n = n_threads
+        buffer_ratio = 10
+        with multiprocessing.Manager() as manager:
+            q1 = manager.Queue(maxsize = self.n * buffer_ratio)
+            q2 = manager.Queue()
+            o = manager.list()
+            self.read_and_do(read_function,q1,row_function,q2,collect_function,o,out_function)
+            self.out = out_function(o)
+        return None
 
     def compare(self,control=None):
         vs_data = {}
         vs_label = ["median1","median2","pvalue","mean1","mean2"]
 
-        for interval,row in self.ps_table.get_rows_by_group():
-            for group in groups:
-                values = [x for x in ]
+    
 
 
 
@@ -368,6 +379,7 @@ class Signature:
     def mab_params(self,group,interval):
         return (self.beta.alphas[group][interval],
                 self.beta.betas[group][interval])
+
    
 
     ## Set of functions for use by MultiReader
@@ -396,32 +408,17 @@ class Signature:
 
 
 
-class SignatureSet:
 
-    def __init__(self,signatures=None,base_signature=None):
-        if signatures and base_signature:
-            self.signatures = [control] + signatures
-        elif signatures:
-            self.signatures = [None] + signatures
-        elif base_signature:
-            self.signatures = [base_signature]
-        else:
-            self.signatures = [None]
-
-
+    # FROM SignatureSet class
     def compare(self,ps_table,groups):
         vs_data = {}
         vs_label = []
-
         group_list = list(groups.keys())
         g0 = group_list[0]
         group_list = group_list[1:]
-
         vs_label = [f"median_{g0}",f"mean_{g0}"]
         for g in group_list:
             vs_label.extend((f"median_{g}",f"mean_{g}",f"ranksums_p_{g}"))
-
-
         for interval,row in ps_table.get_rows():
             nan_check = np.isnan(row)
             g0_values = [row[i] for i in groups[g0] if not nan_check[i]]
@@ -570,9 +567,6 @@ class MultiReader:
 
 #### Arg Parse
 def get_parser():
-
-
-
     
     import argparse
     parser = argparse.ArgumentParser()
@@ -625,50 +619,37 @@ def main():
     config = get_config(args.config_file)
     check_args_and_config(args=args,config=config)
 
-    # Getting samples from manifest
+    #### ####
+    #### Initiating objects with files
+
     if args.manifest:
         samples = Samples(manifest=args.manifest,c_label=args.control)
     elif args.manifest1 and args.manifest2:
-        samples = parse_manifests(man1=args.manifest1, man2=args.manifest2)
-
-    # Loading annotation
-
+        samples = Samples(man1=args.manifest1, man2=args.manifest2)
     
-    # Initiating objects with files
     if args.ps_table:
         ps_table = Table(filename=ps_table,store=None)
+
     if args.vs_table:
         signature = Signature(vs_table=args.vs_table)
+    else:
+        signature = Signature(ps_table=ps_table,samples=samples)
+
     if args.annotation:
         annotation = Annotation(filename=args.annotation)
 
 
     
     if args.mode == "compare":
-        signature = Signature(ps_table=ps_table,samples=samples)
         signature.compare()
         signature.write_vsfile()
 
     elif args.mode == "fit_beta":
-        if args.vs_table:
-            signature = Signature(ps_table=ps_table,vs_table=args.vs_table,samples=samples)
-        else:
-            signature = Signature(ps_table=ps_table,samples=samples)
-            signature.compare()
         signature.fit_betas()
         signature.write_vsfile()
 
     elif args.mode == "query":
-        signature = Signature(vs_table=args.vs_table)
-        multireader = MultiReader(ps_table.get_rows,
-                                  signature.query_row,
-                                  signature.gather_probabilities,
-                                  signature.write_pvals,
-                                  args.n_threads)
-
-        pass
-    elif args.mode == None:
-        pass
+        signature.query(ps_table)
 
 
 
