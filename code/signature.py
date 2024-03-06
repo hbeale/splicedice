@@ -24,30 +24,18 @@ class Table:
             self.intervals = None
             self.data = None
 
+    # def load_from_file(self,filename)
+    #        pass
 
-
-    # def write_table(self,out_filename):
+    # def write_table(self,out_filename)
     #     with open(out_filename,'w') as tsv:
     #         tab = "\t"
     #         tsv.write(f"splice_interval\t{tab.join(self.samples.samples)}\n")
     #         for interval,row in zip(self.intervals.intervals,self.data):
     #             tsv.write(f"{interval}\t{tab.join(str(val) for val in row)}\n")
     #     return None
-    
-    # def read_table_filter(self,table_file,intervals):
-    #     interval_set = set(intervals)
-    #     intervals = []
-    #     with open(table_file) as table:
-    #         samples = table.readline().rstrip().split("\t")[1:]
-    #         data = []
-    #         for line in table:
-    #             row = line.rstrip().split("\t")
-    #             if row[0] in interval_set:
-    #                 intervals.append(row[0])
-    #                 data.append([float(x) for x in row[1:]])
-    #     return samples,intervals,data
-    
-    # def get_sample(self,name):
+     
+    # def get_sample(self,name)
     #     return [self.data[i][self.sample_index[name]] for i in range(self.intervals.n)]
     
     # def combine(self,other,keep="both"):
@@ -65,15 +53,14 @@ class Table:
     #         data[i] = self.get_row(interval) + other.get_row(interval)
     #     return Table(intervals=intervals,samples=samples,data=data)
     
-    # def reset_na(self,splice_interval,counts):
-        
-        # name,left,right,strand = Intervals.parse_interval(splice_interval)
-        # contig = (name,strand)
-        # span_i = (left,right,self.intervals.index[splice_interval])
-        # ex_count = np.zeros(range(self.samples.m))
-        # for exclusion in self.exclusions[contig][span_i]:
-        #     ex_count += counts[exclusion]
-        #     splice_interval =  self.intervals.intervals[span_i[2]]
+    # def reset_na(self,splice_interval,counts)
+    # name,left,right,strand = Intervals.parse_interval(splice_interval)
+    # contig = (name,strand)
+    # span_i = (left,right,self.intervals.index[splice_interval])
+    # ex_count = np.zeros(range(self.samples.m))
+    # for exclusion in self.exclusions[contig][span_i]:
+    #     ex_count += counts[exclusion]
+    #     splice_interval =  self.intervals.intervals[span_i[2]]
 
     def get_row(self,interval,get_exclusion=False):
         try:
@@ -96,13 +83,7 @@ class Table:
                 for line in data_file:
                     row = line.rstrip().split("\t")
                     yield (row[0],[float(x) for x in row[1:]])
-        # elif self.store == "byrow":
-        #     for interval_row in zip(self.intervals,self.data):
-        #         yield interval_row
-        # elif self.store == "array":
-        #     for i in range(self.m):
-        #         yield self.intervals[i],self.data[i,:]
-        # # elif other storage cases...
+
                     
     def get_rows_by_group(self):
         for i,interval in enumerate(self.intervals):
@@ -128,7 +109,7 @@ class Samples(list):
         list.init(self,samples)
         self.index = {sample:i for i,sample in enumerate(self.samples)}
 
-        sample_groups = {k:v for k,v in self.groups.items() if k!=self.control_name}
+        self.sample_groups = {k:v for k,v in self.groups.items() if k!=self.control_name}
 
     def parse_manifest(self,manifest):
         with open(manifest) as file:
@@ -278,17 +259,25 @@ from scipy.stats import ranksums
 
 class Signature:
 
-    def __init__(self,vs_file=None,ps_table=None):   #ps_file=None,sample_group=[],control_group=[]):
-
+    def __init__(self,vs_file=None,ps_table=None):
         # Lists of samples in each group
-        # self.groups = [sample_group,control_group]
-        # Group comparison data
         if vs_file:
-            self.vs_label,self.vs_data, = self.read_vsfile(vs_file)
+            self.vs_label,self.vs_data = self.read_vsfile(vs_file)
         elif ps_table:
             self.ps_table = ps_table
             self.vs_label,self.vs_data = None,None
+        self.beta = Beta()
+        self.params = None
 
+    def read_vsfile(self,vs_filename):
+        vs_data = {}
+        with open(vs_filename) as tsv:
+            vs_label = tsv.readline().rstrip().split("\t")[1:]
+            for line in tsv:
+                row = line.rstrip().split()
+                vs_data[row[0]] = row[1:]
+        return vs_label,vs_data
+        
     def write_vsfile(self,output_prefix):
         tab = "\t"
         with open (f"{output_prefix}.sig.tsv","w") as tsv:
@@ -302,149 +291,77 @@ class Signature:
         vs_data = {}
         vs_label = [f"median_{samples.control_name}",f"mean_{samples.control_name}"]
         for group in samples.sample_groups.keys():
-            vs_label.extend([f"median_{group}",f"mean_{group}",f"ranksums_p_{group}"])
+            vs_label.extend([f"median_{group}",f"mean_{group}",f"delta_med_{group}",f"ranksums_p_{group}"])
         for interval,row in ps_table.get_rows(dtype="arrays"):
             nan_check = [np.isnan(x) for x in row]
             control_values = [row[i] for i in samples.control_group if not nan_check[i]]
             if len(control_values) < 3:
                 continue
-            vs_data[interval] = [np.median(control_values),np.mean(control_values)]
-            for group in samples.sample_groups:
+            control_median = np.median(control_values)
+            vs_data[interval] = [control_median,np.mean(control_values)]
+            for group in samples.sample_groups.values():
                 ps_values = [row[i] for i in group if not nan_check[i]]
                 if len(ps_values) < 3:
                     vs_data[interval].extend([np.median(ps_values),np.mean(ps_values),None])
                     continue
                 D,pval = ranksums(ps_values,control_values)
-                vs_data[interval].extend([np.median(ps_values),np.mean(ps_values),pval])
+                median = np.median(ps_values)
+                vs_data[interval].extend([median,np.mean(ps_values),median-control_median,pval])
         self.vs_label = vs_label
         self.vs_data = vs_data
         return None
+    
+    ## Beta fit helper functions for multiprocessing
+    def collect_params(self,item,params):
+        group,interval,mab = item
+        try:
+            params[group][interval] = mab
+        except KeyError:
+            params[group] = {interval:mab}
+            
+    def save_params(self,params):
+        self.params = params
+        return params
 
     def fit_betas(self):
-        pass
-
-    
-    #     vs_data = {}
-    #     vs_label = ["median1","median2","pvalue","mean1","mean2"]
-
-    
-    
-
-
-    #     """with open(ps_file) as tsv:
-    #         names = tsv.readline().rstrip().split("\t")
-    #         sample_indices = [i for i,x in enumerate(names) if x in sample_group]
-    #         control_indices = [i for i,x in enumerate(names) if x in control_group]
-    #         vs_data = {}
-    #         vs_label = ["median1","median2","pvalue","mean1","mean2"]
-    #         for line in tsv:
-    #             row = line.rstrip().split("\t")
-    #             interval = row[0]
-    #             sig = [float(row[i]) for i in sample_indices if row[i] != "nan"]
-    #             con = [float(row[i]) for i in control_indices if row[i] != "nan"]
-    #             if len(sig) < 3 or len(con) < 3:
-    #                 continue # default values????
-    #             D,pval = ranksums(sig,con)
-    #             median_sample = np.median(sig)
-    #             median_control = np.median(con)
-    #             mean_sample = np.mean(sig)
-    #             mean_control = np.mean(con)
-    #             vs_data[interval] = [median_sample,median_control,pval,
-    #                                  mean_sample,mean_control]"""
-    #     return vs_label,vs_data
-
-    # def add_annotation(self,annotation):
-    #     if "gene" in self.vs_label:
-    #         return None
+        mr = MultiReader(self.ps_table.get_rows_by_group, 
+                    self.beta.fit_beta,
+                    self.collect_params,
+                    self.save_params)
         
+    # ## Set of querying functions for use by MultiReader
+    def query_row(self,row):
+        interval,values = row
+        probabilities = {}
+        for group in self.groups:
+            probabilities[group] = []
+            m,a,b = self.mab_params(group,interval)
+            for x in values:
+                probabilities[group].append(self.beta.cdf(x,m,a,b,self.beta.loc,self.beta.scale))
+        return probabilities
 
-    # def read_vsfile(self,vs_filename):
-    #     vs_data = {}
-    #     with open(vs_filename) as tsv:
-    #         vs_label = tsv.readline().rstrip().split("\t")[1:]
-    #         for line in tsv:
-    #             row = line.rstrip().split()
-    #             vs_data[row[0]] = row[1:]
-    #     return vs_label,vs_data
-    
-    # def write_vsfile(self,output,threshold=0,i=2):
-    #     tab = "\t"
-    #     with open (output,"w") as tsv:
-    #         tsv.write(f"interval\t{tab.join(self.vs_label)}\n")
-    #         for interval,data in self.vs_data.items():
-    #             if float(data[i]) <= threshold:
-    #                 tsv.write(f"{interval}\t{tab.join(str(x) for x in data)}\n")
-    
-    # def fit_beta(self,ps_filename):
-    #     self.beta = Beta(self,ps_filename)
-    #     self.vs_label.extend(["alpha1","beta1","alpha2","beta2"])
-    #     for interval,data in self.vs_data.items():
-    #         data([self.beta.alphas[0][interval],self.beta.betas[0][interval],
-    #                      self.beta.alphas[1][interval],self.beta.betas[1][interval]])
-    
-    # def mab_params(self,group,interval):
-    #     return (self.beta.alphas[group][interval],
-    #             self.beta.betas[group][interval])
+    def gather_probabilities(self,item,out_list):
+        for i,values in enumerate(item):
+            for j,x in enumerate(values):
+                out_list[i][j].append(x)
 
-   
+    def write_pvals(self,out_list):
+        control_probabilities = out_list[0]
+        for values in out_list[1:]:
+            for probabilities in values:
+                D,pval = ranksums(probabilities,control_probabilities)
 
-    # ## Set of functions for use by MultiReader
-    # def query_row(self,row):
-    #     interval,values = row
-    #     probabilities = {}
-    #     for group in self.groups:
-    #         probabilities[group] = []
-    #         m,a,b = self.mab_params(group,interval)
-    #         for x in values:
-    #             probabilities[group].append(Betas.cdf(x,m,a,b,self.beta.loc,self.beta.scale))
-    #     return probabilities
-
-    # def gather_probabilities(self,item,out_list):
-    #     for i,values in enumerate(item):
-    #         for j,x in enumerate(values):
-    #             out_list[i][j].append(x)
-
-    # def write_pvals(self,out_list):
-    #     control_probabilities = out_list[0]
-    #     for values in out_list[1:]:
-    #         for probabilities in values:
-    #             D,pval = ranksums(probabilities,control_probabilities)
-
-
-
-
-
-
-    # FROM SignatureSet class
-    def compare(self,ps_table,groups):
-        vs_data = {}
-        vs_label = []
-        group_list = list(groups.keys())
-        g0 = group_list[0]
-        group_list = group_list[1:]
-        vs_label = [f"median_{g0}",f"mean_{g0}"]
-        for g in group_list:
-            vs_label.extend((f"median_{g}",f"mean_{g}",f"ranksums_p_{g}"))
-        for interval,row in ps_table.get_rows():
-            nan_check = np.isnan(row)
-            g0_values = [row[i] for i in groups[g0] if not nan_check[i]]
-            if len(g0_values) < 3:
-                continue
-            vs_data[interval] = [np.median(g0_values),np.mean(g0_values)]
-            for group in group_list:
-                ps_values = [row[i] for i in positions if not nan_check[i]]
-                if len(ps_values) < 3:
-                    vs_data[interval].extend((None,None,None))
-                    continue
-                D,pval = ranksums(ps_values,g0_values)
-                vs_data[interval].extend((np.median(ps_values),np.mean(ps_values),pval))
-        return vs_label,vs_data
+    def fit_betas(self,ps_table):
+        mr = MultiReader(ps_table.get_rows, 
+                    self.query_row,
+                    self.gather_probabilities,
+                    self.write_pvals)
 
 #### ####               #### ####
 #### #### Beta distribution
 from scipy.stats import beta as stats_beta
 
-class Betas:
+class Beta:
 
     @staticmethod
     def cdf(x,m,a,b,loc=-0.001,scale=1.002):
@@ -473,28 +390,22 @@ class Betas:
             self.scale = 1.002
 
         
-        self.alphas,self.betas,self.medians = self.fit_betas(self.sig.groups)
+        #self.alphas,self.betas,self.medians = self.fit_betas(self.sig.groups)
         
-    def fit_betas(self,ps_table,samples,intervals):
-        alphas = {group:{} for group in samples.groups}
-        betas = {gp:{} for gp in (0,1)}
-        medians = {gp:{} for gp in (0,1)}
-        for interval,row_by_group in ps_table.get_rows_by_group(samples,intervals):
-            for group,row in row_by_group:
-                values = [float(ps) for ps in row if ps != "nan"]
-                if len(values) == 0:
-                            continue
-                median = np.median(values)
-                if self.exclude:
-                    values = [x for x in values if x != 0 and x != 1]
-                try:
-                    a,b,l,s = stats_beta.fit(values,floc=self.loc,fscale=self.scale)
-                except:
-                    a,b,l,s = None,None,None,None 
-                alphas[group][interval] = a
-                betas[group][interval] = b
-                medians[group][interval] = median
-        return alphas,betas,medians
+
+
+    def fit_beta(self,row):
+        group,interval,values = row
+        values = [x for x in values if not np.isna(x)]
+        if not values:
+            return (None,None,None)
+        if self.exclude:
+            values = [x for x in values if x != 0 and x != 1]
+        try:
+            a,b,l,s = stats_beta.fit(values,floc=self.loc,fscale=self.scale)
+        except:
+            a,b = None,None 
+        return group,interval,(np.median(values),a,b)
 
     def query(self,group,event):
         return (self.medians[group][event],self.alphas[group][event],self.betas[group][event])
@@ -585,7 +496,7 @@ def get_parser():
     parser.add_argument("-v","--vs_table",default=None,
                         help="Filename and path for .sig.tsv file, previously output from splicedice.")
     
-    parser.add_argument("-a","--annotation",default=None
+    parser.add_argument("-a","--annotation",default=None,
                         help="GTF or splice_annotation.tsv file with gene annotation (optional for labeling/filtering)")
     parser.add_argument("-m","--manifest",
                         help="TSV file with list of samples and labels.")
