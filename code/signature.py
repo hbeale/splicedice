@@ -346,6 +346,7 @@ class Signature:
         for group,data in params.items():
             self.vs_label.extend([f"median_{group}",f"alpha_{group}",f"beta_{group}"])
             for interval,mab in data.items():
+                print(mab)
                 try:
                     self.vs_data[interval].extend(list(mab))
                 except KeyError:
