@@ -334,19 +334,17 @@ class Signature:
         return None
     
     ## Beta fit helper functions for multiprocessing
-    def collect_params(self,item,params):
+    def collect_params(self,item,params,manager):
         group,interval,mab = item
-        if group and interval and mab:
-            try:
-                params[group][interval] = mab
-            except KeyError:
-                params[group] = {interval:mab}
+        try:
+            params[group][interval] = mab
+        except KeyError:
+            params[group] = manager.dict({interval:mab})
             
     def save_params(self,params):
         for group,data in params.items():
             self.vs_label.extend([f"median_{group}",f"alpha_{group}",f"beta_{group}"])
             for interval,mab in data.items():
-                print(mab)
                 try:
                     self.vs_data[interval].extend(list(mab))
                 except KeyError:
@@ -457,7 +455,7 @@ class MultiReader:
             q1 = manager.Queue(maxsize = self.n * buffer_ratio)
             q2 = manager.Queue()
             o = manager.dict()
-            self.read_and_do(read_function,q1,row_function,q2,collect_function,o)
+            self.read_and_do(read_function,q1,row_function,q2,collect_function,o,manager)
             self.out = out_function(o)
         return None
             
@@ -479,22 +477,22 @@ class MultiReader:
             o.put(f(item))
         return None
     
-    def collect_rows(self,q,f,o):
+    def collect_rows(self,q,f,o,manager):
         while True:
             item = q.get()
             if item == "DONE":
                 break
-            f(item,o)
+            f(item,o,manager)
         return None
 
-    def read_and_do(self,read_function,q1,row_function,q2,collect_function,o):
+    def read_and_do(self,read_function,q1,row_function,q2,collect_function,o,manager):
         read_process = multiprocessing.Process(target=self.reader,args=(read_function,q1))
         read_process.start()
         pool = [multiprocessing.Process(target=self.do_rows,args=(q1,row_function,q2)) for n in range(self.n-2)] 
         print("starting pool...")
         for p in pool:
             p.start()
-        out_process = multiprocessing.Process(target=self.collect_rows,args=(q2,collect_function,o))
+        out_process = multiprocessing.Process(target=self.collect_rows,args=(q2,collect_function,o,manager))
         out_process.start()
         print("pre-join...")
         read_process.join()
