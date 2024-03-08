@@ -6,6 +6,10 @@ import numpy as np
 ## splicedice code imports
 #from annotation import Annotation
 
+# Suppress Warnings
+import warnings
+warnings.simplefilter("ignore")
+
 #### ####               #### ####
      #### Table class
 
@@ -79,23 +83,26 @@ class Table:
         if self.store == None:
             with open(self.filename) as data_file:
                 header = data_file.readline().rstrip().split('\t')[1:]
-                yield header[1:]
+                #yield header[1:]
                 for line in data_file:
                     row = line.rstrip().split("\t")
                     yield (row[0],[float(x) for x in row[1:]])
 
                     
     def get_rows_by_group(self):
+
+
         if self.store == None:
             with open(self.filename) as data_file:
                 header = data_file.readline().rstrip().split('\t')[1:]
-                #yield header[1:]
-                
+                groups = {}
+                for group,samples in self.samples.groups.items():
+                    groups[group] = [i for i,s in enumerate(header) if s in samples]               
                 for line in data_file:
                     row = line.rstrip().split("\t")
                     interval = row[0]
-                    row = row[1:]
-                    for name,group in self.samples.groups.items():
+                    row = row[1:]                    
+                    for name,group in groups.items():
                         yield (name,interval,[float(row[x]) for x in group])
         else:
             for i,interval in enumerate(self.intervals):
@@ -123,6 +130,9 @@ class Samples(list):
 
         self.sample_groups = {k:v for k,v in self.groups.items() if k!=self.control_name}
 
+    def control_group(self):
+        return self.groups[self.control_name]
+
     def parse_manifest(self,manifest):
         with open(manifest) as file:
             samples = []
@@ -131,9 +141,9 @@ class Samples(list):
                 row = line.rstrip().split("\t")
                 samples.append(row[0])
                 if row[1] in groups:
-                    groups[row[1]].append(i)
+                    groups[row[1]].append(row[0])
                 else:
-                    groups[row[1]] = [i]
+                    groups[row[1]] = [row[0]]
                     if not self.control_name:
                         self.control_name = row[1]
         return samples,groups
@@ -277,7 +287,7 @@ class Signature:
             self.vs_label,self.vs_data = self.read_vsfile(vs_file)
         elif ps_table:
             self.ps_table = ps_table
-            self.vs_label,self.vs_data = None,None
+            self.vs_label,self.vs_data = [],{}
         self.beta = Beta()
         self.params = None
 
@@ -304,9 +314,9 @@ class Signature:
         vs_label = [f"median_{samples.control_name}",f"mean_{samples.control_name}"]
         for group in samples.sample_groups.keys():
             vs_label.extend([f"median_{group}",f"mean_{group}",f"delta_med_{group}",f"ranksums_p_{group}"])
-        for interval,row in ps_table.get_rows(dtype="arrays"):
+        for interval,row in ps_table.get_rows():
             nan_check = [np.isnan(x) for x in row]
-            control_values = [row[i] for i in samples.control_group if not nan_check[i]]
+            control_values = [row[i] for i in samples.control_group() if not nan_check[i]]
             if len(control_values) < 3:
                 continue
             control_median = np.median(control_values)
@@ -336,7 +346,11 @@ class Signature:
         for group,data in params.items():
             self.vs_label.extend([f"median_{group}",f"alpha_{group}",f"beta_{group}"])
             for interval,mab in data.items():
-                vs_data[interval].extend([m,a,b])
+                try:
+                    self.vs_data[interval].extend(list(mab))
+                except KeyError:
+                    self.vs_data[interval] = list(mab)
+
         return params
 
     def fit_betas(self):
@@ -534,7 +548,7 @@ def check_args_and_config(args,config):
     if args.mode == "compare":
         if not args.ps_table:
             exit()
-        if not ((args.manifest and args.control) or (args.manifest1 and args.manifest2)):
+        if not ((args.manifest and args.control_name) or (args.manifest1 and args.manifest2)):
             exit()
     elif args.mode == "fit_beta":
         return True
@@ -569,14 +583,15 @@ def main():
 
     # Execute the specified mode
     if args.mode == "compare":
-        signature.compare(samples)
+        print("compare")
+        signature.compare(ps_table)
         signature.write_vsfile(args.output_prefix)
 
     elif args.mode == "fit_beta":
         print("fit beta")
         signature.fit_betas()
         print("write...")
-        signature.write_vsfile()
+        signature.write_vsfile(args.output_prefix)
 
     elif args.mode == "query":
         signature.query_and_write(ps_table)
