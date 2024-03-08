@@ -511,7 +511,7 @@ def get_parser():
     parser.add_argument("-c","--config_file",default=None,
                         help = "Optional. For adjusting parameters of splicing analysis.")
     parser.add_argument("-ctrl","--control_name",default=None,
-                        help="Sample group label that represents control for comparative analysis.")
+                        help="Sample group label that represents control for comparative analysis (for single manifest).")
     parser.add_argument("-n","--n_threads",default=1,
                         help="Maximum number of processes to use at the same time.")
     

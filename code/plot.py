@@ -25,19 +25,22 @@ class PCA_plot:
         self.fig = plt.figure(figsize=(6,4))
         self.fig.scatter(xs,ys)
 
-def parse_args():
+def get_args():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i","--input")
-    parser.add_argument("-p","--plot_options")
-    parser.add_argument("-o","--output_file_prefix")
-
-
+    parser.add_argument("-i","--input",
+                        help="")
+    parser.add_argument("-p","--plot_options",
+                        help="")
+    parser.add_argument("-o","--output_file_prefix",
+                        help="")
     return parser.parse_args()
 
 
 def main():
-    pass
+    args = get_args()
+
+
 
 if __name__=="__main__":
     main()
