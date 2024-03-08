@@ -2,16 +2,16 @@
 
 ## Python package imports
 import numpy as np
-from statsmodels.stats.multitest import multipletests
+#from statsmodels.stats.multitest import multipletests
 ## splicedice code imports
-from annotation import Annotation
+#from annotation import Annotation
 
 #### ####               #### ####
      #### Table class
 
 class Table:
-    def __init__(self,filename=None,intervals=None,samples=None,data=None,store=None):
-
+    def __init__(self,filename=None,samples=None,intervals=None,data=None,store=None):
+        self.store = store
         if intervals and samples and data:
             self.samples = samples
             self.intervals = intervals
@@ -20,7 +20,7 @@ class Table:
         #     self.samples,self.intervals,self.data = load_from_file.read_table(filename)
         else:
             self.filename = filename
-            self.samples = None
+            self.samples = samples
             self.intervals = None
             self.data = None
 
@@ -86,17 +86,29 @@ class Table:
 
                     
     def get_rows_by_group(self):
-        for i,interval in enumerate(self.intervals):
-            for name,group in self.samples.groups.items():
-                yield (name,interval,[self.data[i][j] for j in group])
+        if self.store == None:
+            with open(self.filename) as data_file:
+                header = data_file.readline().rstrip().split('\t')[1:]
+                #yield header[1:]
+                
+                for line in data_file:
+                    row = line.rstrip().split("\t")
+                    interval = row[0]
+                    row = row[1:]
+                    for name,group in self.samples.groups.items():
+                        yield (name,interval,[float(row[x]) for x in group])
+        else:
+            for i,interval in enumerate(self.intervals):
+                for name,group in self.samples.groups.items():
+                    yield (name,interval,[self.data[i][j] for j in group])
 
 #### ####               #### ####
     #### Samples class
                 
 class Samples(list):
 
-    def __init__(self,manifest=None,control_name=None,man1=None,man2=None,samples=[],groups={}):
-        self.control_name = control_name
+    def __init__(self,manifest=None,control=None,man1=None,man2=None,samples=[],groups={}):
+        self.control_name = control
         if manifest:
             samples,self.groups = self.parse_manifest(manifest)
         elif man1 and man2:
@@ -106,8 +118,8 @@ class Samples(list):
             self.groups = groups
         else:
             return None
-        list.init(self,samples)
-        self.index = {sample:i for i,sample in enumerate(self.samples)}
+        list.__init__(self,samples)
+        self.index = {sample:i for i,sample in enumerate(samples)}
 
         self.sample_groups = {k:v for k,v in self.groups.items() if k!=self.control_name}
 
@@ -314,13 +326,17 @@ class Signature:
     ## Beta fit helper functions for multiprocessing
     def collect_params(self,item,params):
         group,interval,mab = item
-        try:
-            params[group][interval] = mab
-        except KeyError:
-            params[group] = {interval:mab}
+        if group and interval and mab:
+            try:
+                params[group][interval] = mab
+            except KeyError:
+                params[group] = {interval:mab}
             
     def save_params(self,params):
-        self.params = params
+        for group,data in params.items():
+            self.vs_label.extend([f"median_{group}",f"alpha_{group}",f"beta_{group}"])
+            for interval,mab in data.items():
+                vs_data[interval].extend([m,a,b])
         return params
 
     def fit_betas(self):
@@ -337,7 +353,7 @@ class Signature:
             probabilities[group] = []
             m,a,b = self.mab_params(group,interval)
             for x in values:
-                probabilities[group].append(self.beta.cdf(x,m,a,b,self.beta.loc,self.beta.scale))
+                probabilities[group].append(self.beta.cdf(x,m,a,b))
         return probabilities
 
     def gather_probabilities(self,item,out_list):
@@ -351,7 +367,7 @@ class Signature:
             for probabilities in values:
                 D,pval = ranksums(probabilities,control_probabilities)
 
-    def fit_betas(self,ps_table):
+    def query_and_write(self,ps_table):
         mr = MultiReader(ps_table.get_rows, 
                     self.query_row,
                     self.gather_probabilities,
@@ -363,24 +379,7 @@ from scipy.stats import beta as stats_beta
 
 class Beta:
 
-    @staticmethod
-    def cdf(x,m,a,b,loc=-0.001,scale=1.002):
-        if x == m:
-            return 1
-        else:
-            if x > m:
-                return 1 - stats_beta.cdf(x,a,b,loc=loc,scale=scale)
-            else:
-                return stats_beta.cdf(x,a,b,loc=loc,scale=scale)
-
-    
-
-
-    def __init__(self,ps_table,samples,intervals,exclude_zero_ones=False):
-
-        self.ps_table = ps_table  
-        self.samples = samples
-        
+    def __init__(self,exclude_zero_ones=False):
         self.exclude = exclude_zero_ones
         if self.exclude:
             self.loc = 0
@@ -389,14 +388,18 @@ class Beta:
             self.loc = -0.001
             self.scale = 1.002
 
-        
-        #self.alphas,self.betas,self.medians = self.fit_betas(self.sig.groups)
-        
-
+    def cdf(self,x,m,a,b):
+        if x == m:
+            return 1
+        else:
+            if x > m:
+                return 1 - stats_beta.cdf(x,a,b,loc=self.loc,scale=self.scale)
+            else:
+                return stats_beta.cdf(x,a,b,loc=self.loc,scale=self.scale)
 
     def fit_beta(self,row):
         group,interval,values = row
-        values = [x for x in values if not np.isna(x)]
+        values = [x for x in values if not np.isnan(x)]
         if not values:
             return (None,None,None)
         if self.exclude:
@@ -429,7 +432,7 @@ def gz_yield_rows(filename):
 import multiprocessing
 
 class MultiReader:
-    def __init__(self,read_function,row_function,collect_function,out_function,n_threads=3):
+    def __init__(self,read_function,row_function,collect_function,out_function,n_threads=8):
         if n_threads < 3:
             return None
         import multiprocessing
@@ -438,8 +441,8 @@ class MultiReader:
         with multiprocessing.Manager() as manager:
             q1 = manager.Queue(maxsize = self.n * buffer_ratio)
             q2 = manager.Queue()
-            o = manager.list()
-            self.read_and_do(read_function,q1,row_function,q2,collect_function,o,out_function)
+            o = manager.dict()
+            self.read_and_do(read_function,q1,row_function,q2,collect_function,o)
             self.out = out_function(o)
         return None
             
@@ -473,14 +476,22 @@ class MultiReader:
         read_process = multiprocessing.Process(target=self.reader,args=(read_function,q1))
         read_process.start()
         pool = [multiprocessing.Process(target=self.do_rows,args=(q1,row_function,q2)) for n in range(self.n-2)] 
+        print("starting pool...")
         for p in pool:
             p.start()
         out_process = multiprocessing.Process(target=self.collect_rows,args=(q2,collect_function,o))
+        out_process.start()
+        print("pre-join...")
         read_process.join()
+        print("read joined...")
+
         for p in pool:
             p.join()
+        print("pool joined...")
+
         q2.put("DONE")
         out_process.join()
+        print("out done")
         return None
     
 
@@ -500,8 +511,6 @@ def get_parser():
                         help="GTF or splice_annotation.tsv file with gene annotation (optional for labeling/filtering)")
     parser.add_argument("-m","--manifest",
                         help="TSV file with list of samples and labels.")
-    parser.add_argument("-c","--control_label",default="control",type=str,
-                        help="Label for samples in control group (when using single manifest).")
     parser.add_argument("-m1","--manifest1",
                         help="File with list of samples for signature group.")
     parser.add_argument("-m2","--manifest2",
@@ -518,7 +527,7 @@ def get_parser():
     return parser
      
 # Import config reader and default configs
-from .config import get_config
+from config import get_config
 
 # Function to check for appropriate input specs
 def check_args_and_config(args,config):
@@ -540,18 +549,21 @@ def main():
     config = get_config(args.config_file)
     check_args_and_config(args=args,config=config)
 
-    #### ####
     #### Initiating objects with files
+    print("manifest")
     if args.manifest:
         samples = Samples(manifest=args.manifest,control=args.control_name)
     elif args.manifest1 and args.manifest2:
         samples = Samples(man1=args.manifest1, man2=args.manifest2)
+        
+    print("ps,vs")
     if args.ps_table:
-        ps_table = Table(filename=ps_table,store=None)
+        ps_table = Table(filename=args.ps_table,samples=samples,store=None)
     if args.vs_table:
         signature = Signature(vs_table=args.vs_table)
     else:
-        signature = Signature(ps_table=ps_table,samples=samples)
+        signature = Signature(ps_table=ps_table)
+        
     if args.annotation:
         annotation = Annotation(filename=args.annotation)
 
@@ -561,7 +573,9 @@ def main():
         signature.write_vsfile(args.output_prefix)
 
     elif args.mode == "fit_beta":
-        signature.fit_betas(samples)
+        print("fit beta")
+        signature.fit_betas()
+        print("write...")
         signature.write_vsfile()
 
     elif args.mode == "query":
