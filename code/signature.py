@@ -567,7 +567,8 @@ class MultiReader:
         for p in pool:
             p.join()
         print("pool joined...")
-
+        q2.put("DONE")
+        q2.put("DONE")
         q2.put("DONE")
         out_process.join()
         print("out done")
@@ -643,8 +644,8 @@ def main():
     else:
         signature = Signature(ps_table=ps_table)
         
-    if args.annotation:
-        annotation = Annotation(filename=args.annotation)
+    #if args.annotation:
+    #    annotation = Annotation(filename=args.annotation)
 
     # Execute the specified mode
     if args.mode == "compare":
