@@ -50,7 +50,7 @@ def main():
 
     print("Reading manifest")
     if args.manifest:
-        manifest = Manifest(filename=args.manifest,control=args.control_name)
+        manifest = Manifest(filename=args.manifest,control_name=args.control_name)
     else:
         manifest = Manifest()
 
@@ -94,11 +94,11 @@ class Manifest:
                         self.groups[group_name] = Signature(name=group_name,manifest=self)
                     self.groups[group_name].add_sample(sample_name)
 
-            self.sample_group__names = [name for name in self.groups.keys() if name != control_name]
+            self.sample_group_names = [name for name in self.groups.keys() if name != control_name]
             for group_name in self.sample_group_names:
-                self.groups[group_name].add_control(self.groups[control_name])
-            self.get_group = {sample:group.name for group,values in self.groups.values() for sample in values}
-            self.index = {sample:i for i,sample in enumerate(self)}
+                self.groups[group_name].add_control(control_name)
+            self.get_group = {sample:signature.name for signature in self.groups.values() for sample in signature.samples}
+            self.index = {sample:i for i,sample in enumerate(self.samples)}
 
     def read_sig(self,sig_file):
         data = {}
@@ -115,7 +115,7 @@ class Manifest:
         self.data = data
         self.columns = columns
 
-    def write_sig(self,output_prefix,intervals):
+    def write_sig(self,output_prefix,intervals=None):
         header = ["splice_interval"]
         indices = []
         i = 0
@@ -127,12 +127,13 @@ class Manifest:
                 header.extend([f"mean_{name}",f"median_{name}"])
                 indices.extend([i+x for x in (0,1)])
             i += 4
-
+        if not intervals:
+            intervals = self.data.keys()
         with open(f"{output_prefix}.sig.tsv",'w') as tsv:
             tab = '\t'
             tsv.write(f"{tab.join(header)}\n")
             for interval in intervals:
-                tsv.write(f"{interval}\t{tab.join([self.data[interval][i] for i in indices])}\n")
+                tsv.write(f"{interval}\t{tab.join([str(self.data[interval][i]) for i in indices])}\n")
 
 
 
@@ -147,7 +148,7 @@ class Manifest:
             medians = {g:np.median(values) for g,values in group_values.items()}
             data[interval] = []
             for group_name,values in group_values.items():
-                control_name = self.groups[group_name].control_name
+                control_name = self.groups[group_name].control
                 if control_name:
                     if len(values)>2 and len(group_values[control_name])>2:
                         D,pval = ranksums(values, group_values[control_name])
@@ -224,6 +225,8 @@ class Signature:
     def sample_set(self):
         return set(self.samples)
         
-    
-     
+# Run main
+if __name__ == "__main__":
+    main()
+
 
