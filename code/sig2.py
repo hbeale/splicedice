@@ -48,6 +48,7 @@ def main():
     config = get_config(args.config_file)
     check_args_and_config(args=args,config=config)
 
+    print("Reading manifest")
     if args.manifest:
         manifest = Manifest(filename=args.manifest,control=args.control_name)
     else:
@@ -60,7 +61,9 @@ def main():
         ps_table = Table(filename=args.ps_table,store=None)
 
     if args.mode == "compare":
+        print("comparing...")
         manifest.compare(ps_table)
+        print("writing...")
         manifest.write_sig(args.output_prefix)
 
     elif args.mode == "fit_beta":
