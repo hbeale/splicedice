@@ -19,8 +19,7 @@ class Beta:
             else:
                 return stats_beta.cdf(x,a,b,loc=self.loc,scale=self.scale)
 
-    def fit_beta(self,row):
-        group,interval,values = row
+    def fit_beta(self,values):
         values = [x for x in values if not np.isnan(x)]
         if not values:
             return (None,None,(None,None,None))
@@ -30,7 +29,7 @@ class Beta:
             a,b,l,s = stats_beta.fit(values,floc=self.loc,fscale=self.scale)
         except:
             a,b = None,None 
-        return group,interval,(np.median(values),a,b)
+        return (np.median(values),a,b)
     
 
 class Multi:

@@ -2,6 +2,8 @@
 import numpy as np
 from scipy.stats import ranksums
 
+from tools import Beta,Multi
+
 # Suppress Warnings
 import warnings
 warnings.simplefilter("ignore")
@@ -73,18 +75,17 @@ def main():
     elif args.mode == "query":
         manifest.query_and_write(ps_table)
 
-
 #### Manifest Class ####    
 class Manifest:
     def __init__(self,filename=None,control_name=None):
+        self.samples = []
         self.groups = {}
         self.data = {}
         self.columns = []
         self.get_group = {}
+        self.beta = Beta()
         if filename:
             with open(filename) as manifest_file:
-                self.groups = {}
-                self.samples = []
                 for line in manifest_file:
                     row = line.rstrip().split("\t")
                     sample_name,group_name = row[0:2]
@@ -101,6 +102,13 @@ class Manifest:
                 self.groups[group_name].add_control(control_name)
             self.index = {sample:i for i,sample in enumerate(self.samples)}
 
+    def get_group_indices(self,samples):
+        group_indices = {k:[] for k in self.groups.keys()}
+        for i,s in enumerate(samples):
+            if s in self.get_group:
+                group_indices[self.get_group[s]].append(i)
+        return group_indices
+    
     def read_sig(self,sig_file):
         data = {}
         with open(sig_file) as tsv:
@@ -151,22 +159,38 @@ class Manifest:
                         D,pval = ranksums(values, group_values[control_name])
                     else:
                         pval = None
-                    delta = medians[group_name] - medians[control_name]
+                    data[interval].append([np.mean(values),medians[group_name],medians[group_name]-medians[control_name],pval])
                 else:
-                    pval,delta = None,None
-                data[interval].extend([np.mean(values),medians[group_name],delta,pval])
-        self.data = data
+                    data[interval].append([np.mean(values),medians[group_name]])
+        self.data["compare"] = data
         return None
     
-    def get_group_indices(self,samples):
-        group_indices = {k:[] for k in self.groups.keys()}
-        for i,s in enumerate(samples):
-            if s in self.get_group:
-                group_indices[self.get_group[s]].append(i)
-        return group_indices
 
-     #### Table class
+    def fit_betas(self,interval_set,ps_table):
+        import multiprocessing
+        n = 8
+        buffer_ratio = 10
+        with multiprocessing.Manager() as manager:
+            q1 = manager.Queue(maxsize = n * buffer_ratio)
+            q2 = manager.Queue()
+            o = manager.dict()
+            read_process = multiprocessing.Process(target=Multi.mp_reader,
+                                                   args=(ps_table.get_rows_by_group,interval_set,q1,n))
+            read_process.start()
+            pool = [multiprocessing.Process(target=Multi.mp_do_rows,args=(q1,self.beta.fit_beta,q2)) for n in range(n-2)] 
+            for p in pool:
+                p.start()
+            collect_process = multiprocessing.Process(target=self.mp_collect_rows,args=(q2,o,manager))
+            collect_process.start()
+            read_process.join()
+            for p in pool:
+                p.join()
+            q2.put("DONE")
+            collect_process.join()
+            self.save_params(o)
 
+
+    
 #### Table Class ####    
 class Table:
     def __init__(self,filename=None,samples=None,intervals=None,data=None,store=None):
@@ -204,12 +228,18 @@ class Table:
                         
 #### Signature Class ####    
 class Signature:
-    def __init__(self,name=None,manifest=None,samples=[],control_group=None):
-        self.name = name
+    def __init__(self,label=None,manifest=None,samples=[],control_group=None):
+        
+        # Saving or instantiating sample group information
+        self.label = label
         self.manifest = manifest
         self.samples = samples
         self.control = control_group
-        
+
+        # Instantiating data
+        self.data = []
+        self.labels = {}
+
     def add_sample(self,sample):
         self.samples.append(sample)
         
@@ -221,6 +251,8 @@ class Signature:
         
     def sample_set(self):
         return set(self.samples)
+    
+
         
 # Run main
 if __name__ == "__main__":
