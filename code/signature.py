@@ -14,7 +14,7 @@ warnings.simplefilter("ignore")
      #### Table class
 
 class Table:
-    def __init__(self,filename=None,samples=None,intervals=None,data=None,store=None):
+    # def __init__(self,filename=None,samples=None,intervals=None,data=None,store=None):
         self.store = store
         if intervals and samples and data:
             self.samples = samples
@@ -29,44 +29,44 @@ class Table:
             self.data = None
 
     # def load_from_file(self,filename)
-    #        pass
+           pass
 
     # def write_table(self,out_filename)
-    #     with open(out_filename,'w') as tsv:
-    #         tab = "\t"
-    #         tsv.write(f"splice_interval\t{tab.join(self.samples.samples)}\n")
-    #         for interval,row in zip(self.intervals.intervals,self.data):
-    #             tsv.write(f"{interval}\t{tab.join(str(val) for val in row)}\n")
-    #     return None
+        with open(out_filename,'w') as tsv:
+            tab = "\t"
+            tsv.write(f"splice_interval\t{tab.join(self.samples.samples)}\n")
+            for interval,row in zip(self.intervals.intervals,self.data):
+                tsv.write(f"{interval}\t{tab.join(str(val) for val in row)}\n")
+        return None
      
     # def get_sample(self,name)
-    #     return [self.data[i][self.sample_index[name]] for i in range(self.intervals.n)]
+        return [self.data[i][self.sample_index[name]] for i in range(self.intervals.n)]
     
     # def combine(self,other,keep="both"):
-    #     if keep == "union":
-    #         intervals = self.intervals.union(other.intervals)
-    #     elif keep == "intersection":
-    #         intervals = self.intervals.intersection(other.intervals)
-    #     elif keep == "left":
-    #         intervals = self.intervals
-    #     elif keep == "right":
-    #         intervals = other.intervals
-    #     samples = self.samples.combine(other.samples)
-    #     data = [[] for i in range(intervals.n)]
-    #     for i,interval in enumerate(intervals):
-    #         data[i] = self.get_row(interval) + other.get_row(interval)
-    #     return Table(intervals=intervals,samples=samples,data=data)
+        if keep == "union":
+            intervals = self.intervals.union(other.intervals)
+        elif keep == "intersection":
+            intervals = self.intervals.intersection(other.intervals)
+        elif keep == "left":
+            intervals = self.intervals
+        elif keep == "right":
+            intervals = other.intervals
+        samples = self.samples.combine(other.samples)
+        data = [[] for i in range(intervals.n)]
+        for i,interval in enumerate(intervals):
+            data[i] = self.get_row(interval) + other.get_row(interval)
+        return Table(intervals=intervals,samples=samples,data=data)
     
-    # def reset_na(self,splice_interval,counts)
-    # name,left,right,strand = Intervals.parse_interval(splice_interval)
-    # contig = (name,strand)
-    # span_i = (left,right,self.intervals.index[splice_interval])
-    # ex_count = np.zeros(range(self.samples.m))
-    # for exclusion in self.exclusions[contig][span_i]:
-    #     ex_count += counts[exclusion]
-    #     splice_interval =  self.intervals.intervals[span_i[2]]
+    #def reset_na(self,splice_interval,counts)
+        name,left,right,strand = Intervals.parse_interval(splice_interval)
+        contig = (name,strand)
+        span_i = (left,right,self.intervals.index[splice_interval])
+        ex_count = np.zeros(range(self.samples.m))
+        for exclusion in self.exclusions[contig][span_i]:
+            ex_count += counts[exclusion]
+            splice_interval =  self.intervals.intervals[span_i[2]]
 
-    def get_row(self,interval,get_exclusion=False):
+    # def get_row(self,interval,get_exclusion=False):
         try:
             return self.data[self.intervals.index[interval]]
         except KeyError:
@@ -79,7 +79,7 @@ class Table:
             else:
                 return ["nan" for i in range(self.samples.m)]
             
-    def get_rows(self):
+    # def get_rows(self):
         if self.store == None:
             with open(self.filename) as data_file:
                 header = data_file.readline().rstrip().split('\t')[1:]
@@ -115,7 +115,7 @@ class Table:
                 
 class Samples(list):
 
-    def __init__(self,manifest=None,control=None,man1=None,man2=None,samples=[],groups={}):
+    # def __init__(self,manifest=None,control=None,man1=None,man2=None,samples=[],groups={}):
         self.control_name = control
         if manifest:
             samples,self.groups = self.parse_manifest(manifest)
@@ -131,10 +131,10 @@ class Samples(list):
 
         self.sample_groups = {k:v for k,v in self.groups.items() if k!=self.control_name}
 
-    def control_group(self):
+    #def control_group(self):
         return self.groups[self.control_name]
 
-    def parse_manifest(self,manifest):
+    #def parse_manifest(self,manifest):
         with open(manifest) as file:
             samples = []
             groups = {}
@@ -149,7 +149,7 @@ class Samples(list):
                         self.control_name = row[1]
         return samples,groups
     
-    def parse_manifests(self,man1,man2):
+    #def parse_manifests(self,man1,man2):
         samples = []
         groups = {"1":[],"2":[]}
         with open(man1) as file:
@@ -165,14 +165,14 @@ class Samples(list):
         return samples,groups
  
     # def combine(self,other):
-    #     for sample in other.samples:
-    #         if sample in self.index:
-    #             raise ValueError('Overlapping sample names, cannot combine.')
-    #     new_groups = self.groups.items() ^ other.groups.items()
-    #     for group in self.groups.keys() & other.groups.keys():
-    #         new_groups[group] = self.groups[group] + other.groups[group]
-    #     new_samples = self.samples + other.samples
-    #     return Samples(samples=new_samples,groups=new_groups)
+        for sample in other.samples:
+            if sample in self.index:
+                raise ValueError('Overlapping sample names, cannot combine.')
+        new_groups = self.groups.items() ^ other.groups.items()
+        for group in self.groups.keys() & other.groups.keys():
+            new_groups[group] = self.groups[group] + other.groups[group]
+        new_samples = self.samples + other.samples
+        return Samples(samples=new_samples,groups=new_groups)
     
 #### ####               #### ####
     #### Intervals class
@@ -180,16 +180,16 @@ class Samples(list):
 class Intervals(list):
 
     @staticmethod
-    def parse_interval(string):
+    #def parse_interval(string):
         name,span,strand = string.split(":")
         left,right = (int(s) for s in span.split("-"))
         return (name,left,right,strand)
 
     @staticmethod
-    def get_string(name,left,right,strand):
+    #def get_string(name,left,right,strand):
         return f"{name}:{left}-{right}:{strand}"
     
-    def __init__(self,intervals=[],contigs={}):
+    #def __init__(self,intervals=[],contigs={}):
         if contigs:
             self.contigs = contigs
             if not intervals:
@@ -200,7 +200,7 @@ class Intervals(list):
         self.n = len(self.intervals)
         self.exclusions = {}
 
-    def get_contigs(self,intervals):
+    #def get_contigs(self,intervals):
         contigs = {}
         for i,interval in enumerate(intervals):
             name,left,right,strand = self.parse_interval(interval)
@@ -221,7 +221,7 @@ class Intervals(list):
         return intervals
 
 
-    def read_exclusion(self,exclusion_file):
+    #def read_exclusion(self,exclusion_file):
         exclusions = {}
         with open(exclusion_file) as tsv:
             for line in tsv:
@@ -229,7 +229,7 @@ class Intervals(list):
                 exclusions[interval] = exclusive.split(",") # <<<--------- CHECK THIS CHARACTER
         return exclusions
 
-    def find_exclusion(self,contigs):
+    #def find_exclusion(self,contigs):
         exclusions = {}
         for contig,span_list in contigs.items():
             span_list.sort()
@@ -249,7 +249,7 @@ class Intervals(list):
                 exclusions[contig][new_span].append(new_span)
         return exclusions
     
-    def combine(self,other,keep="union"):
+    #def combine(self,other,keep="union"):
         if keep == "union":
             contigs = self.contigs.items() ^ other.contigs.items()
             for contig in self.contigs.keys():
@@ -262,14 +262,14 @@ class Intervals(list):
                     contigs[contig] = sorted(set(self.contigs[contig]).intersection(set(other.contigs[contig])))
         return Intervals(contigs=contigs)
     
-    def intersection(self,other):
+    #def intersection(self,other):
         contigs = {}
         for contig in self.contigs.keys():
             if contig in other.contigs:
                 contigs[contig] = sorted(set(self.contigs[contig]).intersection(set(other.contigs[contig])))
         return Intervals(contigs=contigs)
     
-    def union(self,other):
+    #def union(self,other):
         contigs = self.contigs.items() ^ other.contigs.items()
         for contig in self.contigs.keys():
             if contig in other.contigs:
@@ -282,7 +282,7 @@ from scipy.stats import ranksums
 
 class Signature:
 
-    def __init__(self,vs_file=None,ps_table=None):
+    #def __init__(self,vs_file=None,ps_table=None):
         # Lists of samples in each group
         if vs_file:
             self.vs_label,self.vs_data = self.read_vsfile(vs_file)
@@ -294,7 +294,7 @@ class Signature:
         self.beta = Beta()
         self.params = None
 
-    def read_vsfile(self,vs_filename):
+   # def read_vsfile(self,vs_filename):
         vs_data = {}
         with open(vs_filename) as tsv:
             vs_label = tsv.readline().rstrip().split("\t")[1:]
@@ -303,14 +303,14 @@ class Signature:
                 vs_data[row[0]] = row[1:]
         return vs_label,vs_data
         
-    def write_vsfile(self,output_prefix):
+    #def write_vsfile(self,output_prefix):
         tab = "\t"
         with open (f"{output_prefix}.sig.tsv","w") as tsv:
             tsv.write(f"splice_interval\t{tab.join(self.vs_label)}\n")
             for interval,data in self.vs_data.items():
                 tsv.write(f"{interval}\t{tab.join(str(x) for x in data)}\n")
     
-    def compare(self,ps_table,samples=None):
+    #def compare(self,ps_table,samples=None):
         if not samples:
             samples = ps_table.samples
         vs_data = {}
@@ -336,7 +336,7 @@ class Signature:
         self.vs_data = vs_data
         return None
 
-    def significant_interval_set(self,group,threshold=0.05,key=):
+    def significant_interval_set(self,group,threshold=0.05):
         i = self.data_index[f"ranksums_p_{group}"]
         interval_set = set()
         for interval,data in self.vs_data.items():
@@ -361,7 +361,6 @@ class Signature:
                     self.vs_data[interval].extend(list(mab))
                 except KeyError:
                     self.vs_data[interval] = list(mab)
-
         return params
 
     def mp_reader(self,read_function,i,q,n):
