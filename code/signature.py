@@ -89,7 +89,7 @@ class Table:
                     yield (row[0],[float(x) for x in row[1:]])
 
                     
-    def get_rows_by_group(self):
+    def get_rows_by_group(self,interval_set):
 
 
         if self.store == None:
@@ -101,9 +101,10 @@ class Table:
                 for line in data_file:
                     row = line.rstrip().split("\t")
                     interval = row[0]
-                    row = row[1:]                    
-                    for name,group in groups.items():
-                        yield (name,interval,[float(row[x]) for x in group])
+                    if interval in interval_set:
+                        row = row[1:]                    
+                        for name,group in groups.items():
+                            yield (name,interval,[float(row[x]) for x in group])
         else:
             for i,interval in enumerate(self.intervals):
                 for name,group in self.samples.groups.items():
@@ -288,6 +289,8 @@ class Signature:
         elif ps_table:
             self.ps_table = ps_table
             self.vs_label,self.vs_data = [],{}
+
+        self.data_index = {label:i for i,label in enumerate(self.vs_label)}
         self.beta = Beta()
         self.params = None
 
@@ -332,6 +335,15 @@ class Signature:
         self.vs_label = vs_label
         self.vs_data = vs_data
         return None
+
+    def significant_interval_set(self,group,threshold=0.05,key=):
+        i = self.data_index[f"ranksums_p_{group}"]
+        interval_set = set()
+        for interval,data in self.vs_data.items():
+            if data[i] <= threshold:
+                interval_set.add(interval)
+        return interval_set
+            
     
     ## Beta fit helper functions for multiprocessing
     def collect_params(self,item,params,manager):
@@ -352,12 +364,66 @@ class Signature:
 
         return params
 
-    def fit_betas(self):
-        mr = MultiReader(self.ps_table.get_rows_by_group, 
-                    self.beta.fit_beta,
-                    self.collect_params,
-                    self.save_params)
+    def mp_reader(self,read_function,i,q,n):
         
+        for i,item in enumerate(read_function(i)):
+                q.put(item)
+                if i == 1000:
+                    break
+        for i in range(n):
+            q.put("DONE")
+        return None
+
+    def mp_do_rows(self,q,f,o):
+        while True:
+            item = q.get()
+            if item == "DONE":
+                break
+            o.put(f(item))
+        return None
+    
+    def mp_collect_rows(self,q,o,manager):
+        while True:
+            item = q.get()
+            if item == "DONE":
+                break
+            group,interval,mab = item
+            try:
+                o[group][interval] = mab
+            except KeyError:
+                o[group] = manager.dict({interval:mab})
+        
+    def fit_betas(self,args):
+        interval_set = self.significant_interval_set()
+        import multiprocessing
+        n = 8
+        buffer_ratio = 10
+        with multiprocessing.Manager() as manager:
+            q1 = manager.Queue(maxsize = n * buffer_ratio)
+            q2 = manager.Queue()
+            o = manager.dict()
+            read_process = multiprocessing.Process(target=self.mp_reader,
+                                                   args=(self.ps_table.get_rows_by_group,interval_set,q1,n))
+            read_process.start()
+            pool = [multiprocessing.Process(target=self.mp_do_rows,args=(q1,self.beta.fit_beta,q2)) for n in range(n-2)] 
+            print("starting pool...")
+            for p in pool:
+                p.start()
+            collect_process = multiprocessing.Process(target=self.mp_collect_rows,args=(q2,o,manager))
+            collect_process.start()
+            print("pre-join...")
+            read_process.join()
+            print("read joined...")
+            for p in pool:
+                p.join()
+            print("pool joined...")
+    
+            q2.put("DONE")
+            collect_process.join()
+            print("out done")
+            self.save_params(o)
+        
+     
     # ## Set of querying functions for use by MultiReader
     def query_row(self,row):
         interval,values = row
@@ -414,7 +480,7 @@ class Beta:
         group,interval,values = row
         values = [x for x in values if not np.isnan(x)]
         if not values:
-            return (None,None,None)
+            return (None,None,(None,None,None))
         if self.exclude:
             values = [x for x in values if x != 0 and x != 1]
         try:
@@ -479,7 +545,7 @@ class MultiReader:
     
     def collect_rows(self,q,f,o,manager):
         while True:
-            item = q.get()
+            item = q.get(timeout=10)
             if item == "DONE":
                 break
             f(item,o,manager)
@@ -589,7 +655,7 @@ def main():
 
     elif args.mode == "fit_beta":
         print("fit beta")
-        signature.fit_betas()
+        signature.fit_betas(args)
         print("write...")
         signature.write_vsfile(args.output_prefix)
 
