@@ -80,6 +80,7 @@ class Manifest:
         self.groups = {}
         self.data = {}
         self.columns = []
+        self.get_group = {}
         if filename:
             with open(filename) as manifest_file:
                 self.groups = {}
@@ -88,6 +89,7 @@ class Manifest:
                     row = line.rstrip().split("\t")
                     sample_name,group_name = row[0:2]
                     self.samples.append(sample_name)
+                    self.get_group[sample_name] = group_name
                     if group_name not in self.groups:
                         if not control_name:
                             control_name = group_name
@@ -97,7 +99,6 @@ class Manifest:
             self.sample_group_names = [name for name in self.groups.keys() if name != control_name]
             for group_name in self.sample_group_names:
                 self.groups[group_name].add_control(control_name)
-            self.get_group = {sample:signature.name for signature in self.groups.values() for sample in signature.samples}
             self.index = {sample:i for i,sample in enumerate(self.samples)}
 
     def read_sig(self,sig_file):
@@ -135,13 +136,9 @@ class Manifest:
             for interval in intervals:
                 tsv.write(f"{interval}\t{tab.join([str(self.data[interval][i]) for i in indices])}\n")
 
-
-
     def compare(self,ps_table):
         data = {}
-        samples = ps_table.get_samples()
-        group_indices = self.get_group_indices(samples)
-
+        group_indices = self.get_group_indices(ps_table.get_samples())
         for interval,row in ps_table.get_rows():
             nan_check = [np.isnan(x) for x in row]
             group_values = {g:[row[i] for i in index if not nan_check[i]] for g,index in group_indices.items()}
