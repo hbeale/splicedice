@@ -69,7 +69,7 @@ def main():
         manifest.write_sig(args.output_prefix)
 
     elif args.mode == "fit_beta":
-        manifest.compare_and_fit_betas(args)
+        manifest.fit_betas(ps_table)
         manifest.write_sig(args.output_prefix)
 
     elif args.mode == "query":
@@ -94,7 +94,7 @@ class Manifest:
                     if group_name not in self.groups:
                         if not control_name:
                             control_name = group_name
-                        self.groups[group_name] = Signature(name=group_name,manifest=self)
+                        self.groups[group_name] = Signature(label=group_name,manifest=self)
                     self.groups[group_name].add_sample(sample_name)
 
             self.sample_group_names = [name for name in self.groups.keys() if name != control_name]
@@ -125,9 +125,7 @@ class Manifest:
         self.columns = columns
 
     def write_sig(self,output_prefix,intervals=None):
-        header = ["splice_interval"]
-        indices = []
-        
+        header = ["splice_interval"]        
         for name,signature in self.groups.items():
             if 'compare' in self.data:
                 if signature.control:
@@ -138,23 +136,25 @@ class Manifest:
                     header.extend([f"alpha_{name}",f"beta_{name}"])
             elif 'fit' in self.data:
                 header.extend([f"median_{name}",f"alpha_{name}",f"beta_{name}"])
-        if not intervals:
-            intervals = self.data.keys()
+        if 'fit' in self.data:
+            intervals = self.data['fit'].keys()
+        elif 'compare' in self.data:
+            intervals = self.data['compare'].keys()
         with open(f"{output_prefix}.sig.tsv",'w') as tsv:
             tab = '\t'
             tsv.write(f"{tab.join(header)}\n")
             for interval in intervals:
-                data = []
+                row = []
                 if 'compare' in self.data and 'fit' in self.data:
                     for c,f in zip(self.data['compare'][interval],self.data['fit'][interval]):
-                        data.extend([str(x) for x in c]+[str(x) for x in f[:2]])
-                if 'compare' in self.data:
+                        row.extend([str(x) for x in c]+[str(x) for x in f[1:]])
+                elif 'compare' in self.data:
                     for values in self.data['compare'][interval]:
-                        data.extend([str(x) for x in values])
-                if 'fit' in self.data:
+                        row.extend([str(x) for x in values])
+                elif 'fit' in self.data:
                     for values in self.data['fit'][interval]:
-                        data.extend([str(x) for x in values])
-                tsv.write(f"{interval}\t{tab.join([str(data) for i in indices])}\n")
+                        row.extend([str(x) for x in values])
+                tsv.write(f"{interval}\t{tab.join(row)}\n")
 
     def compare(self,ps_table):
         data = {}
@@ -173,7 +173,7 @@ class Manifest:
                         pval = None
                     data[interval].append([np.mean(values),medians[group_name],medians[group_name]-medians[control_name],pval])
                 else:
-                    data[interval].append([np.mean(values),medians[group_name],None,None])
+                    data[interval].append([np.mean(values),medians[group_name]])
         self.data["compare"] = data
         return None
     
@@ -181,7 +181,7 @@ class Manifest:
         significant = []
         for interval,data in self.data['compare'].items():
             for d in data:
-                if d[3] < threshold:
+                if len(d) == 4 and d[3] < threshold:
                     significant.append(interval)
                     break
         if as_set:
@@ -198,6 +198,8 @@ class Manifest:
         return interval,mab_row
 
     def fit_betas(self,ps_table):
+        if 'compare' not in self.data:
+            self.compare(ps_table)
         interval_set = self.significant_intervals()
         group_indices = self.get_group_indices(ps_table.get_samples())
         self.data["fit"] = {}
@@ -221,6 +223,7 @@ class Manifest:
                     done_count += 1
                     if done_count == n-2:
                         break
+                    continue
                 self.data['fit'][item[0]] = item[1]
             read_process.join()
             for p in pool:
