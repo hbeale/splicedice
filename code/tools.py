@@ -45,10 +45,11 @@ class Multi:
         return None
 
     @staticmethod
-    def mp_do_rows(q,f,o):
+    def mp_do_rows(q,f,info,o):
         while True:
             item = q.get()
             if item == "DONE":
+                o.put("DONE")
                 break
-            o.put(f(item))
+            o.put(f(item,info))
         return None
