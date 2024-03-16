@@ -65,17 +65,17 @@ def main():
 
     elif args.mode == "fit_beta":
         if args.sig_file:
-            compare_stats = manifest.read_sig(args.sig_file)
+            groups,compare_stats = manifest.read_sig(args.sig_file,get="compare")
             beta_stats = manifest.fit_betas(ps_table,compare_stats)
         else:
-            compare_stats = manifest.compare(ps_table,only_significant=True)
+            groups,med_stats,compare_stats = manifest.compare(ps_table,threshold=0.05)
             beta_stats = manifest.fit_betas(ps_table,compare_stats)
-        manifest.write_sig(args.output_prefix, beta_stats)
+        manifest.write_sig(args.output_prefix,groups=groups,beta_stats=beta_stats)
 
     elif args.mode == "query":
-        manifest.read_sig(args.sig_file)
-        beta_stats = manifest.get_beta_stats()
-        manifest.query(ps_table,beta_stats)
+        groups,beta_stats = manifest.read_sig(args.sig_file,get="beta")
+        labels,pvals = manifest.query(ps_table,groups,beta_stats)
+        manifest.write_pvals(labels,pvals)
 
 #### Manifest Class ####    
 class Manifest:
@@ -125,37 +125,38 @@ class Manifest:
                 data[row[0]] = row[1:]
         return columns,data
 
-    def write_sig(self,output_prefix,intervals=None):
-        header = ["splice_interval"]        
-        for name,signature in self.groups.items():
-            if 'compare' in self.data:
-                if signature.control:
-                    header.extend([f"mean_{name}",f"median_{name}",f"delta_{name}",f"ranksums_{name}"])
-                else:
-                    header.extend([f"mean_{name}",f"median_{name}"])
-                if 'fit' in self.data:
-                    header.extend([f"alpha_{name}",f"beta_{name}"])
-            elif 'fit' in self.data:
+    def write_sig(self,output_prefix,groups=None,med_stats=None,compare_stats=None,beta_stats=None,):
+        header = ["splice_interval"]
+        stats = {}
+        for which_stat in [med_stats,compare_stats,beta_stats]:
+            if which_stat:
+                for interval,values in which_stat.items():
+                    if interval not in stats:
+                        stats[interval] = []
+                    for v in values:
+                        stats[interval].extend(v)
+                intervals = which_stat.keys()
+        for name in groups:
+            if med_stats:
+                header.extend([f"median_{name}",f"mean_{name}"])
+            if compare_stats:
+                header.extend([f"delta_{name}",f"pval_{name}"])
+            if beta_stats:
                 header.extend([f"median_{name}",f"alpha_{name}",f"beta_{name}"])
-        if 'fit' in self.data:
-            intervals = self.data['fit'].keys()
-        elif 'compare' in self.data:
-            intervals = self.data['compare'].keys()
         with open(f"{output_prefix}.sig.tsv",'w') as tsv:
             tab = '\t'
             tsv.write(f"{tab.join(header)}\n")
             for interval in intervals:
-                row = []
-                if 'compare' in self.data and 'fit' in self.data:
-                    for c,f in zip(self.data['compare'][interval],self.data['fit'][interval]):
-                        row.extend([str(x) for x in c]+[str(x) for x in f[1:]])
-                elif 'compare' in self.data:
-                    for values in self.data['compare'][interval]:
-                        row.extend([str(x) for x in values])
-                elif 'fit' in self.data:
-                    for values in self.data['fit'][interval]:
-                        row.extend([str(x) for x in values])
-                tsv.write(f"{interval}\t{tab.join(row)}\n")
+                tsv.write(f"{interval}\t{tab.join(str(x) for x in stats[interval])}\n")
+
+    def write_pvals(self,output_prefix,labels,pvals):
+        samples,queries = labels
+        with open(f"{output_prefix}.sig.tsv",'w') as tsv:
+            tab = "\t"
+            tsv.write(f"query\t{tab.join(samples)}\n")
+            for i in range(len(queries)):
+                for j in range(len(queries)):
+                    tsv.write(f"{queries[i][j]}\t{tab.join(pvals[i][j])}\n")
 
     def compare(self,ps_table,threshold=1):
         med_stats = {}
@@ -168,7 +169,6 @@ class Manifest:
             stats = [] 
             to_add = False
             for group_name,group_values in values_by_group.items():
-                stats.append([medians[group_name],np.mean(group_values)])
                 control_name = self.groups[group_name].control
                 if control_name:
                     delta = medians[group_name] - medians[control_name]
@@ -206,7 +206,7 @@ class Manifest:
     def fit_betas(self,ps_table,compare_stats):
         interval_set = self.significant_intervals(compare_stats)
         group_indices = self.get_group_indices(ps_table.get_samples())
-        data = {}
+        beta_stats = {}
         import multiprocessing
         n = 8
         buffer_ratio = 10
@@ -228,15 +228,13 @@ class Manifest:
                     if done_count == n-2:
                         break
                     continue
-                data[item[0]] = item[1]
+                beta_stats[item[0]] = item[1]
+                print(item[1])
             read_process.join()
             for p in pool:
                 p.join()
-        return data
+        return beta_stats
     
-    def get_beta_stats(self):
-
-        pass
 
     def row_query_beta(self,row,beta_stats):
         interval,values = row
@@ -246,7 +244,7 @@ class Manifest:
                 probabilities.append(self.beta.cdf(x,m,a,b))
         return probabilities
 
-    def query(self,ps_table,beta_stats):
+    def query(self,ps_table,groups,beta_stats):
         import multiprocessing
         interval_set = set(beta_stats.keys())
         n = 6
@@ -255,10 +253,8 @@ class Manifest:
             q1 = manager.Queue(maxsize = n * buffer_ratio)
             q2 = manager.Queue()
             o = manager.dict()
-            temp_interval,params = beta_stats.popitem()
             samples = ps_table.get_samples()
-            probs_by_sample = [[[] for j in range(len(samples))] for i in range(len(params))]
-            beta_stats[temp_interval] = params
+            probs_by_sample = [[[] for j in range(len(samples))] for i in range(len(groups))]
             read_process = multiprocessing.Process(target=Multi.mp_reader,args=(ps_table.get_rows,interval_set,q1,n))
             read_process.start()
             pool = [multiprocessing.Process(target=Multi.mp_do_rows,args=(q1,self.row_query_beta,beta_stats,q2)) for n in range(n-2)] 
@@ -279,16 +275,18 @@ class Manifest:
             for p in pool:
                 p.join()
         a = len(probs_by_sample)
-        pvals = [[1 for i in range(a)] for j in range(a)]
-        labels = [[1 for i in range(a)] for j in range(a)]
-        for i,sample_probs in enumerate(probs_by_sample):
-            for j,comp_probs in enumerate(probs_by_sample):
-                labels[i][j] = f"{samples[i]}_over_{samples[j]}"
+        pvals = [[[1 for k in range(len(samples))] for j in range(len(groups))] for i in range(len(groups))]
+        queries = [[f"{groups[i]}_over_{groups[j]}" for j in range(len(groups))] for i in range(len(groups))]
+        for i,group_of_probs in enumerate(probs_by_sample):
+            for j,comp_group_probs in enumerate(probs_by_sample):
+
                 if i==j:
                     continue
-                s,pval = ranksums(sample_probs,comp_probs,alternative="greater",nan_policy="omit")
-                pvals[i][j] = pval
-        return labels,pvals
+                for k,pair in zip(group_of_probs,comp_group_probs):
+                    first,second = pair
+                    s,pval = ranksums(first,second,alternative="greater",nan_policy="omit")
+                    pvals[i][j][k] = pval
+        return (samples,queries),pvals
     
 
 #### Signature Class ####    

@@ -46,13 +46,13 @@ class Multi:
         return None
 
     @staticmethod
-    def mp_do_rows(q,f,info,filter_function,o):
+    def mp_do_rows(q,f,info,o):
         while True:
             item = q.get()
             if item == "DONE":
                 o.put("DONE")
                 break
-            o.put(f(item,info,filter_function))
+            o.put(f(item,info))
         return None
 
 #### Table Class ####        
@@ -76,14 +76,14 @@ class Table:
             with open(self.filename) as tsv:
                 return tsv.readline().rstrip().split('\t')[1:]
             
-    def get_rows(self,filter_function=None):
+    def get_rows(self,interval_set=None):
         if self.store == None:
             with open(self.filename) as data_file:
                 header = data_file.readline().rstrip().split('\t')[1:]
-                if filter_function:
+                if interval_set:
                     for line in data_file:
                         row = line.rstrip().split("\t")
-                        if filter_function(row):
+                        if row[0] in interval_set:
                             yield (row[0],[float(x) for x in row[1:]])
                 else:
                     for line in data_file:
