@@ -82,10 +82,9 @@ class Manifest:
     def __init__(self,filename=None,control_name=None):
         self.samples = []
         self.groups = {}
-        self.data = {}
-        self.columns = []
         self.get_group = {}
         self.beta = Beta()
+        self.controls = []
         if filename:
             with open(filename) as manifest_file:
                 for line in manifest_file:
@@ -96,12 +95,12 @@ class Manifest:
                     if group_name not in self.groups:
                         if not control_name:
                             control_name = group_name
-                        self.groups[group_name] = Signature(label=group_name,manifest=self)
-                    self.groups[group_name].add_sample(sample_name)
+                        self.groups[group_name] = []
+                    self.groups[group_name].append(sample_name)
 
-            self.sample_group_names = [name for name in self.groups.keys() if name != control_name]
-            for group_name in self.sample_group_names:
-                self.groups[group_name].add_control(control_name)
+            sample_group_names = [name for name in self.groups.keys() if name != control_name]
+            for group_name in sample_group_names:
+                self.controls[group_name] = control_name
             self.index = {sample:i for i,sample in enumerate(self.samples)}
 
     def get_group_indices(self,samples):
@@ -111,20 +110,42 @@ class Manifest:
                 group_indices[self.get_group[s]].append(i)
         return {k:v for k,v in group_indices.items() if len(v) > 0}
     
-    def read_sig(self,sig_file):
-        data = {}
+    def read_sig(self,sig_file,get="all"):
+        med_stats = {}
+        compare_stats = {}
+        beta_stats = {}
         with open(sig_file) as tsv:
             columns = tsv.readline().rstrip().split("\t")[1:]
+            index = []
+            groups = {}
+            offset = {}
             for i,column in enumerate(columns):
-                group_name = column.split("_")[-1]
+                info_type,group_name = column.split("_",1)
                 if group_name not in self.groups:
-                    self.groups[group_name] = Signature(name=group_name,manifest=self)
-                    self.groups[group_name].add_column(column,i)
+                    groups[group_name] = []
+                    left = i
+                    index.append(i)
+                offset[info_type] = i-left
             for line in tsv:
-                row = line.rstrip().split()
-                data[row[0]] = row[1:]
-        return columns,data
-
+                row = line.rstrip().split('\t')
+                interval = row[0]
+                row = row[1:]
+                if "mean" in offset and "median" in offset:
+                    for i in index:
+                        med_stats[interval] = [row[i+offset['median']],row[i+offset['mean']]]
+                if "delta" in offset and "ranksums" in offset:
+                    for i in index:
+                        compare_stats[interval] = [row[i+offset['median']],row[i+offset['mean']]]
+                if "median" in offset and "alpha" in offset and "beta" in offset:
+                    for i in index:
+                        beta_stats[interval] = [row[i+offset['median']],row[i+offset['alpha']],row[i+offset['beta']]]
+        if get == "all":
+            return groups,med_stats,compare_stats,beta_stats
+        elif get == "compare":
+            return groups,med_stats,compare_stats
+        elif get == "beta":
+            return groups,beta_stats
+        
     def write_sig(self,output_prefix,groups=None,med_stats=None,compare_stats=None,beta_stats=None,):
         header = ["splice_interval"]
         stats = {}
@@ -169,7 +190,7 @@ class Manifest:
             stats = [] 
             to_add = False
             for group_name,group_values in values_by_group.items():
-                control_name = self.groups[group_name].control
+                control_name = self.control[group_name]
                 if control_name:
                     delta = medians[group_name] - medians[control_name]
                     if len(group_values)>2 and len(values_by_group[control_name])>2:
@@ -229,7 +250,6 @@ class Manifest:
                         break
                     continue
                 beta_stats[item[0]] = item[1]
-                print(item[1])
             read_process.join()
             for p in pool:
                 p.join()
@@ -299,22 +319,13 @@ class Signature:
         self.samples = samples
         self.control = control_group
 
-        # Instantiating data
-        self.data = []
-        self.labels = {}
-
     def add_sample(self,sample):
         self.samples.append(sample)
         
     def add_control(self,control_group):
         self.control = control_group
-
-    def add_column(self,label,i):
-        self.columns[label] = i
         
-    def sample_set(self):
-        return set(self.samples)
-    
+
 
         
 # Run main
