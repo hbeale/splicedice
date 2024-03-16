@@ -107,7 +107,7 @@ class Manifest:
         for i,s in enumerate(samples):
             if s in self.get_group:
                 group_indices[self.get_group[s]].append(i)
-        return group_indices
+        return {k:v for k,v in group_indices.items() if len(v) > 0}
     
     def read_sig(self,sig_file):
         data = {}
@@ -181,7 +181,7 @@ class Manifest:
         significant = []
         for interval,data in self.data['compare'].items():
             for d in data:
-                if len(d) == 4 and d[3] < threshold:
+                if len(d) == 4 and d[3] and d[3] < threshold:
                     significant.append(interval)
                     break
         if as_set:
