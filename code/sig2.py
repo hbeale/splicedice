@@ -2,7 +2,7 @@
 import numpy as np
 from scipy.stats import ranksums
 
-from tools import Beta,Multi
+from tools import Beta,Multi,Table
 
 # Suppress Warnings
 import warnings
@@ -50,30 +50,32 @@ def main():
     config = get_config(args.config_file)
     check_args_and_config(args=args,config=config)
 
-    print("Reading manifest")
     if args.manifest:
-        manifest = Manifest(filename=args.manifest,control_name=args.control_name)
+        manifest = Manifest(filename=args.manifest)
     else:
         manifest = Manifest()
 
-    if args.sig_file:
-        manifest.read_sig(args.sig_file)
-        
     if args.ps_table:
         ps_table = Table(filename=args.ps_table,store=None)
 
     if args.mode == "compare":
-        print("comparing...")
-        manifest.compare(ps_table)
-        print("writing...")
-        manifest.write_sig(args.output_prefix)
+        groups,med_stats,compare_stats = manifest.compare(ps_table)
+        manifest.write_sig(args.output_prefix,groups,med_stats,compare_stats)
+
 
     elif args.mode == "fit_beta":
-        manifest.fit_betas(ps_table)
-        manifest.write_sig(args.output_prefix)
+        if args.sig_file:
+            compare_stats = manifest.read_sig(args.sig_file)
+            beta_stats = manifest.fit_betas(ps_table,compare_stats)
+        else:
+            compare_stats = manifest.compare(ps_table,only_significant=True)
+            beta_stats = manifest.fit_betas(ps_table,compare_stats)
+        manifest.write_sig(args.output_prefix, beta_stats)
 
     elif args.mode == "query":
-        manifest.query_and_write(ps_table)
+        manifest.read_sig(args.sig_file)
+        beta_stats = manifest.get_beta_stats()
+        manifest.query(ps_table,beta_stats)
 
 #### Manifest Class ####    
 class Manifest:
@@ -121,8 +123,7 @@ class Manifest:
             for line in tsv:
                 row = line.rstrip().split()
                 data[row[0]] = row[1:]
-        self.data = data
-        self.columns = columns
+        return columns,data
 
     def write_sig(self,output_prefix,intervals=None):
         header = ["splice_interval"]        
@@ -156,38 +157,43 @@ class Manifest:
                         row.extend([str(x) for x in values])
                 tsv.write(f"{interval}\t{tab.join(row)}\n")
 
-    def compare(self,ps_table):
-        data = {}
+    def compare(self,ps_table,threshold=1):
+        med_stats = {}
+        compare_stats = {}
         group_indices = self.get_group_indices(ps_table.get_samples())
         for interval,row in ps_table.get_rows():
             nan_check = [np.isnan(x) for x in row]
-            group_values = {g:[row[i] for i in index if not nan_check[i]] for g,index in group_indices.items()}
-            medians = {g:np.median(values) for g,values in group_values.items()}
-            data[interval] = []
-            for group_name,values in group_values.items():
+            values_by_group = {g_name:[row[i] for i in index if not nan_check[i]] for g_name,index in group_indices.items()}
+            medians = {g:np.median(values) for g,values in values_by_group.items()}
+            stats = [] 
+            to_add = False
+            for group_name,group_values in values_by_group.items():
+                stats.append([medians[group_name],np.mean(group_values)])
                 control_name = self.groups[group_name].control
                 if control_name:
-                    if len(values)>2 and len(group_values[control_name])>2:
-                        D,pval = ranksums(values, group_values[control_name])
+                    delta = medians[group_name] - medians[control_name]
+                    if len(group_values)>2 and len(values_by_group[control_name])>2:
+                        D,pval = ranksums(group_values, values_by_group[control_name])
+                        if pval < threshold:
+                            to_add = True
                     else:
                         pval = None
-                    data[interval].append([np.mean(values),medians[group_name],medians[group_name]-medians[control_name],pval])
                 else:
-                    data[interval].append([np.mean(values),medians[group_name]])
-        self.data["compare"] = data
-        return None
+                    delta,pval = None,None
+                stats.append([delta,pval])
+            if to_add:
+                compare_stats[interval] = stats
+                med_stats[interval] = [[medians[group_name],np.mean(group_values)] for group_name,group_values in values_by_group.items()]
+        return list(group_indices.keys()),med_stats,compare_stats
     
-    def significant_intervals(self,threshold=0.05,as_set=True):
-        significant = []
-        for interval,data in self.data['compare'].items():
+    def significant_intervals(self,compare_stats,threshold=0.05):
+        significant = set()
+        for interval,data in compare_stats.items():
             for d in data:
-                if len(d) == 4 and d[3] and d[3] < threshold:
-                    significant.append(interval)
+                if d[1] and d[1] < threshold:
+                    significant.add(interval)
                     break
-        if as_set:
-            return set(significant)
-        else:
-            return significant
+        return significant
     
     def row_fit_beta(self,row,group_indices):
         interval,row = row
@@ -197,12 +203,10 @@ class Manifest:
             mab_row.append(self.beta.fit_beta([row[i] for i in index if not nan_check[i]]))
         return interval,mab_row
 
-    def fit_betas(self,ps_table):
-        if 'compare' not in self.data:
-            self.compare(ps_table)
-        interval_set = self.significant_intervals()
+    def fit_betas(self,ps_table,compare_stats):
+        interval_set = self.significant_intervals(compare_stats)
         group_indices = self.get_group_indices(ps_table.get_samples())
-        self.data["fit"] = {}
+        data = {}
         import multiprocessing
         n = 8
         buffer_ratio = 10
@@ -224,47 +228,69 @@ class Manifest:
                     if done_count == n-2:
                         break
                     continue
-                self.data['fit'][item[0]] = item[1]
+                data[item[0]] = item[1]
             read_process.join()
             for p in pool:
                 p.join()
-        return None
+        return data
     
-#### Table Class ####    
-class Table:
-    def __init__(self,filename=None,samples=None,intervals=None,data=None,store=None):
-        self.store = store
-        if intervals and samples and data:
-            self.samples = samples
-            self.intervals = intervals
-            self.data = data
-        else:
-            self.filename = filename
-            self.samples = None
-            self.intervals = None
-            self.data = None
+    def get_beta_stats(self):
 
-    def get_samples(self):
-        if self.samples:
-            return self.samples
-        else:
-            with open(self.filename) as tsv:
-                return tsv.readline().rstrip().split('\t')[1:]
-            
-    def get_rows(self,interval_set=None):
-        if self.store == None:
-            with open(self.filename) as data_file:
-                header = data_file.readline().rstrip().split('\t')[1:]
-                if interval_set:
-                    for line in data_file:
-                        row = line.rstrip().split("\t")
-                        if row[0] in interval_set:
-                            yield (row[0],[float(x) for x in row[1:]])
-                else:
-                    for line in data_file:
-                        row = line.rstrip().split("\t")
-                        yield (row[0],[float(x) for x in row[1:]])
-                        
+        pass
+
+    def row_query_beta(self,row,beta_stats):
+        interval,values = row
+        probabilities = []
+        for m,a,b in beta_stats[interval]:
+            for x in values:
+                probabilities.append(self.beta.cdf(x,m,a,b))
+        return probabilities
+
+    def query(self,ps_table,beta_stats):
+        import multiprocessing
+        interval_set = set(beta_stats.keys())
+        n = 6
+        buffer_ratio = 10
+        with multiprocessing.Manager() as manager:
+            q1 = manager.Queue(maxsize = n * buffer_ratio)
+            q2 = manager.Queue()
+            o = manager.dict()
+            temp_interval,params = beta_stats.popitem()
+            samples = ps_table.get_samples()
+            probs_by_sample = [[[] for j in range(len(samples))] for i in range(len(params))]
+            beta_stats[temp_interval] = params
+            read_process = multiprocessing.Process(target=Multi.mp_reader,args=(ps_table.get_rows,interval_set,q1,n))
+            read_process.start()
+            pool = [multiprocessing.Process(target=Multi.mp_do_rows,args=(q1,self.row_query_beta,beta_stats,q2)) for n in range(n-2)] 
+            for p in pool:
+                p.start()
+            done_count = 0
+            while True:
+                item = q2.get()
+                if item == "DONE":
+                    done_count += 1
+                    if done_count == n-2:
+                        break
+                    continue
+                for i,g_probs in enumerate(item):
+                    for j,prob in enumerate(g_probs):
+                        probs_by_sample[i][j].append(prob)
+            read_process.join()
+            for p in pool:
+                p.join()
+        a = len(probs_by_sample)
+        pvals = [[1 for i in range(a)] for j in range(a)]
+        labels = [[1 for i in range(a)] for j in range(a)]
+        for i,sample_probs in enumerate(probs_by_sample):
+            for j,comp_probs in enumerate(probs_by_sample):
+                labels[i][j] = f"{samples[i]}_over_{samples[j]}"
+                if i==j:
+                    continue
+                s,pval = ranksums(sample_probs,comp_probs,alternative="greater",nan_policy="omit")
+                pvals[i][j] = pval
+        return labels,pvals
+    
+
 #### Signature Class ####    
 class Signature:
     def __init__(self,label=None,manifest=None,samples=[],control_group=None):
