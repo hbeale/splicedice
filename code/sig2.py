@@ -293,7 +293,7 @@ class Manifest:
     def query(self,ps_table,groups,beta_stats):
         import multiprocessing
         interval_set = set(beta_stats.keys())
-        n = 3
+        n = 12
         buffer_ratio = 10
         with multiprocessing.Manager() as manager:
             q1 = manager.Queue(maxsize = n * buffer_ratio)
