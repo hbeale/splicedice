@@ -73,9 +73,13 @@ def main():
         manifest.write_sig(args.output_prefix,groups=groups,beta_stats=beta_stats)
 
     elif args.mode == "query":
+        print("Reading...")
         groups,beta_stats = manifest.read_sig(args.sig_file,get="beta")
-        labels,pvals = manifest.query(ps_table,groups,beta_stats)
-        manifest.write_pvals(labels,pvals)
+        print("Querying...")
+        samples,queries,pvals = manifest.query(ps_table,groups,beta_stats)
+        print("Writing...")
+
+        manifest.write_pvals(args.output_prefix,samples,queries,pvals)
 
 #### Manifest Class ####    
 class Manifest:
@@ -84,7 +88,7 @@ class Manifest:
         self.groups = {}
         self.get_group = {}
         self.beta = Beta()
-        self.controls = []
+        self.controls = {}
         if filename:
             with open(filename) as manifest_file:
                 for line in manifest_file:
@@ -97,9 +101,7 @@ class Manifest:
                             control_name = group_name
                         self.groups[group_name] = []
                     self.groups[group_name].append(sample_name)
-
-            sample_group_names = [name for name in self.groups.keys() if name != control_name]
-            for group_name in sample_group_names:
+            for group_name in self.groups.keys():
                 self.controls[group_name] = control_name
             self.index = {sample:i for i,sample in enumerate(self.samples)}
 
@@ -121,24 +123,42 @@ class Manifest:
             offset = {}
             for i,column in enumerate(columns):
                 info_type,group_name = column.split("_",1)
-                if group_name not in self.groups:
-                    groups[group_name] = []
-                    left = i
-                    index.append(i)
-                offset[info_type] = i-left
+                if group_name not in groups:
+                    groups[group_name] = {}
+                groups[group_name][info_type] = i
             for line in tsv:
                 row = line.rstrip().split('\t')
                 interval = row[0]
+
+                if get == "all":
+                    med_stats[interval] = []
+                if get == "compare" or get == "all":
+                    compare_stats[interval] = []
+                if get == "beta" or get == "all":
+                    beta_stats[interval] = []
+
                 row = row[1:]
-                if "mean" in offset and "median" in offset:
-                    for i in index:
-                        med_stats[interval] = [row[i+offset['median']],row[i+offset['mean']]]
-                if "delta" in offset and "ranksums" in offset:
-                    for i in index:
-                        compare_stats[interval] = [row[i+offset['median']],row[i+offset['mean']]]
-                if "median" in offset and "alpha" in offset and "beta" in offset:
-                    for i in index:
-                        beta_stats[interval] = [row[i+offset['median']],row[i+offset['alpha']],row[i+offset['beta']]]
+                for i,x in enumerate(row):
+                    try:
+                        row[i] = float(x)
+                    except ValueError:
+                        row[i] = float('nan')
+                for group_name in groups:
+                    if get == "all":
+                        median = row[groups[group_name]["median"]]
+                        mean = row[groups[group_name]["mean"]]
+                        med_stats[interval].append([median,mean])
+                    if get == "compare" or get == "all":
+                        delta = row[groups[group_name]["delta"]]
+                        pval = row[groups[group_name]["pval"]]
+                        compare_stats[interval].append([delta,pval])
+                    if get == "beta" or get == "all":
+                        median = row[groups[group_name]["median"]]
+                        alpha = row[groups[group_name]["alpha"]]
+                        beta = row[groups[group_name]["beta"]]
+                        beta_stats[interval].append([median,alpha,beta])
+            
+        groups = list(groups.keys())
         if get == "all":
             return groups,med_stats,compare_stats,beta_stats
         elif get == "compare":
@@ -170,14 +190,14 @@ class Manifest:
             for interval in intervals:
                 tsv.write(f"{interval}\t{tab.join(str(x) for x in stats[interval])}\n")
 
-    def write_pvals(self,output_prefix,labels,pvals):
-        samples,queries = labels
-        with open(f"{output_prefix}.sig.tsv",'w') as tsv:
+    def write_pvals(self,output_prefix,samples,queries,pvals):
+        print("**samples**",samples)
+        with open(f"{output_prefix}.pvals.tsv",'w') as tsv:
             tab = "\t"
             tsv.write(f"query\t{tab.join(samples)}\n")
             for i in range(len(queries)):
                 for j in range(len(queries)):
-                    tsv.write(f"{queries[i][j]}\t{tab.join(pvals[i][j])}\n")
+                    tsv.write(f"{queries[i][j]}\t{tab.join(str(x) for x in pvals[i][j])}\n")
 
     def compare(self,ps_table,threshold=1):
         med_stats = {}
@@ -190,7 +210,7 @@ class Manifest:
             stats = [] 
             to_add = False
             for group_name,group_values in values_by_group.items():
-                control_name = self.control[group_name]
+                control_name = self.controls[group_name]
                 if control_name:
                     delta = medians[group_name] - medians[control_name]
                     if len(group_values)>2 and len(values_by_group[control_name])>2:
@@ -259,28 +279,37 @@ class Manifest:
     def row_query_beta(self,row,beta_stats):
         interval,values = row
         probabilities = []
-        for m,a,b in beta_stats[interval]:
+        for mab in beta_stats[interval]:
+            if None in mab:
+                probabilities.append([float('nan') for i in range(len(values))])
+                continue
+            m,a,b = mab
+            sub_probs = []
             for x in values:
-                probabilities.append(self.beta.cdf(x,m,a,b))
+                sub_probs.append(self.beta.cdf(x,m,a,b))
+            probabilities.append(sub_probs)
         return probabilities
 
     def query(self,ps_table,groups,beta_stats):
         import multiprocessing
         interval_set = set(beta_stats.keys())
-        n = 6
+        n = 3
         buffer_ratio = 10
         with multiprocessing.Manager() as manager:
             q1 = manager.Queue(maxsize = n * buffer_ratio)
             q2 = manager.Queue()
             o = manager.dict()
             samples = ps_table.get_samples()
+            print("get samples",samples)
             probs_by_sample = [[[] for j in range(len(samples))] for i in range(len(groups))]
             read_process = multiprocessing.Process(target=Multi.mp_reader,args=(ps_table.get_rows,interval_set,q1,n))
             read_process.start()
             pool = [multiprocessing.Process(target=Multi.mp_do_rows,args=(q1,self.row_query_beta,beta_stats,q2)) for n in range(n-2)] 
             for p in pool:
                 p.start()
+                print("p.started")
             done_count = 0
+            loop_count = 0
             while True:
                 item = q2.get()
                 if item == "DONE":
@@ -288,25 +317,27 @@ class Manifest:
                     if done_count == n-2:
                         break
                     continue
-                for i,g_probs in enumerate(item):
-                    for j,prob in enumerate(g_probs):
+                for i,sub_probs in enumerate(item):
+                    for j,prob in enumerate(sub_probs):
                         probs_by_sample[i][j].append(prob)
+                loop_count += 1
             read_process.join()
             for p in pool:
                 p.join()
         a = len(probs_by_sample)
         pvals = [[[1 for k in range(len(samples))] for j in range(len(groups))] for i in range(len(groups))]
-        queries = [[f"{groups[i]}_over_{groups[j]}" for j in range(len(groups))] for i in range(len(groups))]
+        queries = [[f"{group_i}_over_{group_j}" for group_j in groups] for group_i in groups]
+
         for i,group_of_probs in enumerate(probs_by_sample):
             for j,comp_group_probs in enumerate(probs_by_sample):
 
                 if i==j:
                     continue
-                for k,pair in zip(group_of_probs,comp_group_probs):
+                for k,pair in enumerate(zip(group_of_probs,comp_group_probs)):
                     first,second = pair
                     s,pval = ranksums(first,second,alternative="greater",nan_policy="omit")
                     pvals[i][j][k] = pval
-        return (samples,queries),pvals
+        return samples,queries,pvals
     
 
 #### Signature Class ####    
