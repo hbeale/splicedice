@@ -197,7 +197,8 @@ class Manifest:
             tsv.write(f"query\t{tab.join(samples)}\n")
             for i in range(len(queries)):
                 for j in range(len(queries)):
-                    tsv.write(f"{queries[i][j]}\t{tab.join(str(x) for x in pvals[i][j])}\n")
+                    if i != j:
+                        tsv.write(f"{queries[i][j]}\t{tab.join(str(x) for x in pvals[i][j])}\n")
 
     def compare(self,ps_table,threshold=1):
         med_stats = {}
