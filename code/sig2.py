@@ -2,13 +2,14 @@
 import numpy as np
 from scipy.stats import ranksums
 
+## 
 from tools import Beta,Multi,Table
 
-# Suppress Warnings
+## Suppress Warnings
 import warnings
 warnings.simplefilter("ignore")
 
-# Arguments and config parsing
+## Arguments and config parsing
 from config import get_config
 
 def get_args():
@@ -59,23 +60,22 @@ def main():
         ps_table = Table(filename=args.ps_table,store=None)
 
     if args.mode == "compare":
-        print("Comparing...")
+        print("Comparing sample gourps...")
         groups,med_stats,compare_stats = manifest.compare(ps_table)
         print("Writing...")
         manifest.write_sig(args.output_prefix,groups,med_stats,compare_stats)
-
 
     elif args.mode == "fit_beta":
         if args.sig_file:
             print("Reading...")
             groups,compare_stats = manifest.read_sig(args.sig_file,get="compare")
         else:
-            print("Comparing for fit...")
+            print("Testing for differential splicing...")
             groups,med_stats,compare_stats = manifest.compare_multi(ps_table,threshold=0.05,delta_threshold=0.05)
 
-        print("Fitting...")
+        print("Fitting beta distributions...")
         beta_stats = manifest.fit_betas(ps_table,compare_stats)
-        print("Writing...")
+        print("Writing files...")
         manifest.write_sig(args.output_prefix,groups=groups,med_stats=med_stats,compare_stats=compare_stats)
         manifest.write_beta(args.output_prefix,groups=groups,beta_stats=beta_stats)
 
@@ -351,7 +351,6 @@ class Manifest:
                 p.join()
         return beta_stats
     
-
     def row_query_beta(self,row,beta_stats):
         interval,values = row
         probabilities = []
@@ -412,11 +411,7 @@ class Manifest:
                     s,pval = ranksums(first,second,alternative="greater",nan_policy="omit")
                     pvals[i][j][k] = pval
         return samples,queries,pvals
-    
-
-
-
-        
+       
 # Run main
 if __name__ == "__main__":
     main()
