@@ -72,6 +72,8 @@ def main():
         else:
             print("Comparing...")
             groups,med_stats,compare_stats = manifest.compare(ps_table,threshold=0.001,delta_threshold=0.1)
+
+        print("** compare_stats ***",compare_stats)
         print("Fitting...")
         beta_stats = manifest.fit_betas(ps_table,compare_stats)
         print("Writing...")
