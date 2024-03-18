@@ -71,7 +71,7 @@ def main():
             groups,compare_stats = manifest.read_sig(args.sig_file,get="compare")
         else:
             print("Comparing for fit...")
-            groups,med_stats,compare_stats = manifest.compare_multi(ps_table,threshold=0.001,delta_threshold=0.1)
+            groups,med_stats,compare_stats = manifest.compare_multi(ps_table,threshold=0.05,delta_threshold=0.05)
 
         print("Fitting...")
         beta_stats = manifest.fit_betas(ps_table,compare_stats)
@@ -234,7 +234,7 @@ class Manifest:
                 med_stats[interval] = [[medians[group_name],np.mean(group_values)] for group_name,group_values in values_by_group.items()]
         return list(group_indices.keys()),med_stats,compare_stats
     
-    def compare_multi(self,ps_table,threshold=0.001,delta_threshold=0):
+    def compare_multi(self,ps_table,threshold=0.05,delta_threshold=0):
 
         med_stats = {}
         compare_stats = {}
@@ -262,7 +262,6 @@ class Manifest:
                     continue
                 interval,stats = item
                 for s in stats:
-                    print(s)
                     if s[0] and abs(s[0])>delta_threshold and s[1] and s[1] < threshold:
                         print(stats)
                         compare_stats[interval] = stats
