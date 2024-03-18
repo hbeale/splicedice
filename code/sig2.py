@@ -222,6 +222,7 @@ class Manifest:
                         D,pval = ranksums(group_values, values_by_group[control_name])
                         if pval < threshold and delta > delta_threshold:
                             to_add = True
+                            print(pval,delta)
                     else:
                         pval = None
                 else:
