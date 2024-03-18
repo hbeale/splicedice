@@ -57,3 +57,13 @@ class AlternativeSplicing:
                 active = new_active
                 exclusions[(contig,(left,right))].append((left,right))
         return exclusions
+    
+
+class Gene:
+    def __init__(self,name,bounds=[],splice_intervals=[],transcripts=[]):
+        self.name = name
+        self.bounds = bounds
+        self.splice_intervals = splice_intervals
+        self.transcripts = transcripts
+
+
