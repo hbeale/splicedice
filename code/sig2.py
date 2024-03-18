@@ -290,12 +290,11 @@ class Manifest:
             stats.append([delta,pval])
         return interval,stats
     
-    def significant_intervals(self,compare_stats,threshold=0.001):
+    def significant_intervals(self,compare_stats,threshold=0.05):
         significant = set()
         d_count = 0
         for interval,data in compare_stats.items():
             for d in data:
-                print(d)
                 if d[0] and abs(d[0]) > 0.1 and d[1] and d[1] < threshold :
                     significant.add(interval)
                     print(d_count)
