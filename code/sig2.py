@@ -295,8 +295,10 @@ class Manifest:
         d_count = 0
         for interval,data in compare_stats.items():
             for d in data:
-                if d[0] and (d[0] > 0.1 or d[0] < -0.1) and d[1] and d[1] < threshold :
+                print(d)
+                if d[0] and abs(d[0]) > 0.1 and d[1] and d[1] < threshold :
                     significant.add(interval)
+                    print(d_count)
                     d_count += 1
                     break
         return significant
