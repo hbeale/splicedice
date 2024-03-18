@@ -71,7 +71,7 @@ def main():
             groups,compare_stats = manifest.read_sig(args.sig_file,get="compare")
         else:
             print("Comparing for fit...")
-            groups,med_stats,compare_stats = manifest.compare(ps_table,threshold=0.001,delta_threshold=0.1)
+            groups,med_stats,compare_stats = manifest.compare_multi(ps_table,threshold=0.001,delta_threshold=0.1)
 
         print("** compare_stats ***",compare_stats)
         print("Fitting...")
@@ -266,7 +266,7 @@ class Manifest:
             read_process.join()
             for p in pool:
                 p.join()
-        return compare_stats
+        return list(group_indices.keys()),med_stats,compare_stats
     
     def row_compare(self,item,group_indices):
         interval,row = item
