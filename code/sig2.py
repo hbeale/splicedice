@@ -297,7 +297,6 @@ class Manifest:
             for d in data:
                 if d[0] and abs(d[0]) > 0.1 and d[1] and d[1] < threshold :
                     significant.add(interval)
-                    print(d_count)
                     d_count += 1
                     break
         return significant
