@@ -76,7 +76,8 @@ def main():
         print("Fitting...")
         beta_stats = manifest.fit_betas(ps_table,compare_stats)
         print("Writing...")
-        manifest.write_sig(args.output_prefix,groups=groups,beta_stats=beta_stats)
+        manifest.write_sig(args.output_prefix,groups=groups,med_stats=med_stats,compare_stats=compare_stats)
+        manifest.write_beta(args.output_prefix,groups=groups,beta_stats=beta_stats)
 
     elif args.mode == "query":
         print("Reading...")
@@ -172,10 +173,10 @@ class Manifest:
         elif get == "beta":
             return groups,beta_stats
         
-    def write_sig(self,output_prefix,groups=None,med_stats=None,compare_stats=None,beta_stats=None,):
+    def write_sig(self,output_prefix,groups=None,med_stats=None,compare_stats=None):
         header = ["splice_interval"]
         stats = {}
-        for which_stat in [med_stats,compare_stats,beta_stats]:
+        for which_stat in [med_stats,compare_stats]:
             if which_stat:
                 for interval,values in which_stat.items():
                     if interval not in stats:
@@ -185,16 +186,23 @@ class Manifest:
                 intervals = which_stat.keys()
         for name in groups:
             if med_stats:
-                header.extend([f"median_{name}",f"mean_{name}"])
-            if compare_stats:
-                header.extend([f"delta_{name}",f"pval_{name}"])
-            if beta_stats:
-                header.extend([f"median_{name}",f"alpha_{name}",f"beta_{name}"])
+                header.extend([f"median_{name}",f"mean_{name}",f"delta_{name}",f"pval_{name}"])
         with open(f"{output_prefix}.sig.tsv",'w') as tsv:
             tab = '\t'
             tsv.write(f"{tab.join(header)}\n")
             for interval in intervals:
                 tsv.write(f"{interval}\t{tab.join(str(x) for x in stats[interval])}\n")
+
+    def write_beta(self,output_prefix,groups=None,beta_stats=None,):
+        header = ["splice_interval"]
+        intervals = beta_stats.keys()
+        for name in groups:
+            header.extend([f"median_{name}",f"alpha_{name}",f"beta_{name}"])
+        with open(f"{output_prefix}.beta.tsv",'w') as tsv:
+            tab = '\t'
+            tsv.write(f"{tab.join(header)}\n")
+            for interval in intervals:
+                tsv.write(f"{interval}\t{tab.join(str(x) for x in beta_stats[interval])}\n")
 
     def write_pvals(self,output_prefix,samples,queries,pvals):
         with open(f"{output_prefix}.pvals.tsv",'w') as tsv:
