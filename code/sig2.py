@@ -68,7 +68,7 @@ def main():
             groups,compare_stats = manifest.read_sig(args.sig_file,get="compare")
             beta_stats = manifest.fit_betas(ps_table,compare_stats)
         else:
-            groups,med_stats,compare_stats = manifest.compare(ps_table,threshold=0.05)
+            groups,med_stats,compare_stats = manifest.compare(ps_table,threshold=0.001)
             beta_stats = manifest.fit_betas(ps_table,compare_stats)
         manifest.write_sig(args.output_prefix,groups=groups,beta_stats=beta_stats)
 
@@ -250,7 +250,7 @@ class Manifest:
         group_indices = self.get_group_indices(ps_table.get_samples())
         beta_stats = {}
         import multiprocessing
-        n = 8
+        n = 36
         buffer_ratio = 10
         with multiprocessing.Manager() as manager:
             q1 = manager.Queue(maxsize = n * buffer_ratio)
