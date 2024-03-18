@@ -191,7 +191,6 @@ class Manifest:
                 tsv.write(f"{interval}\t{tab.join(str(x) for x in stats[interval])}\n")
 
     def write_pvals(self,output_prefix,samples,queries,pvals):
-        print("**samples**",samples)
         with open(f"{output_prefix}.pvals.tsv",'w') as tsv:
             tab = "\t"
             tsv.write(f"query\t{tab.join(samples)}\n")
@@ -301,14 +300,12 @@ class Manifest:
             q2 = manager.Queue()
             o = manager.dict()
             samples = ps_table.get_samples()
-            print("get samples",samples)
             probs_by_sample = [[[] for j in range(len(samples))] for i in range(len(groups))]
             read_process = multiprocessing.Process(target=Multi.mp_reader,args=(ps_table.get_rows,interval_set,q1,n))
             read_process.start()
             pool = [multiprocessing.Process(target=Multi.mp_do_rows,args=(q1,self.row_query_beta,beta_stats,q2)) for n in range(n-2)] 
             for p in pool:
                 p.start()
-                print("p.started")
             done_count = 0
             loop_count = 0
             while True:
