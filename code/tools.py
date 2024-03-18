@@ -80,13 +80,14 @@ class Table:
         if self.store == None:
             with open(self.filename) as data_file:
                 header = data_file.readline().rstrip().split('\t')[1:]
-                if interval_set:
+                
+                if interval_set == None:
+                    for line in data_file:
+                        row = line.rstrip().split("\t")
+                        yield (row[0],[float(x) for x in row[1:]])
+                else:
                     for line in data_file:
                         row = line.rstrip().split("\t")
                         if row[0] in interval_set:
                             yield (row[0],[float(x) for x in row[1:]])
-                else:
-                    for line in data_file:
-                        row = line.rstrip().split("\t")
-                        yield (row[0],[float(x) for x in row[1:]])
                         
