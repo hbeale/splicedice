@@ -73,7 +73,6 @@ def main():
             print("Comparing for fit...")
             groups,med_stats,compare_stats = manifest.compare_multi(ps_table,threshold=0.001,delta_threshold=0.1)
 
-        print("** compare_stats ***",compare_stats)
         print("Fitting...")
         beta_stats = manifest.fit_betas(ps_table,compare_stats)
         print("Writing...")
@@ -225,7 +224,6 @@ class Manifest:
 
                         if pval < threshold and delta > delta_threshold:
                             to_add = True
-                            print(pval,delta)
                     else:
                         pval = None
                 else:
@@ -262,7 +260,6 @@ class Manifest:
                     if done_count == n-2:
                         break
                     continue
-                print(item)
                 interval,stats = item
                 for s in stats:
                     if s[0] and abs(s[0])>delta_threshold and s[1] and s[1] < threshold:
@@ -301,7 +298,6 @@ class Manifest:
                 if d[0] and (d[0] > 0.1 or d[0] < -0.1) and d[1] and d[1] < threshold :
                     significant.add(interval)
                     d_count += 1
-                    print(d_count,d)
                     break
         return significant
     
