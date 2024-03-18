@@ -263,8 +263,11 @@ class Manifest:
                         break
                     continue
                 print(item)
-                if item[0] < threshold and abs(item[0]) > delta_threshold:
-                    compare_stats[item[0]] = item[1]
+                interval,stats = item
+                for s in stats:
+                    if s[0] and abs(s[0])>delta_threshold and s[1] and s[1] < threshold:
+                        compare_stats[interval] = stats
+                        break
             read_process.join()
             for p in pool:
                 p.join()
