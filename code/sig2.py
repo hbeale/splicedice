@@ -242,7 +242,7 @@ class Manifest:
         compare_stats = {}
         group_indices = self.get_group_indices(ps_table.get_samples())
         import multiprocessing
-        n = 36
+        n = 12
         buffer_ratio = 10
         with multiprocessing.Manager() as manager:
             q1 = manager.Queue(maxsize = n * buffer_ratio)
