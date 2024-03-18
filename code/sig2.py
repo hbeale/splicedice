@@ -71,7 +71,7 @@ def main():
             groups,compare_stats = manifest.read_sig(args.sig_file,get="compare")
         else:
             print("Comparing...")
-            groups,med_stats,compare_stats = manifest.compare(ps_table,threshold=0.001)
+            groups,med_stats,compare_stats = manifest.compare(ps_table,threshold=0.001,delta_threshold=0.1)
         print("Fitting...")
         beta_stats = manifest.fit_betas(ps_table,compare_stats)
         print("Writing...")
@@ -204,7 +204,7 @@ class Manifest:
                     if i != j:
                         tsv.write(f"{queries[i][j]}\t{tab.join(str(x) for x in pvals[i][j])}\n")
 
-    def compare(self,ps_table,threshold=1):
+    def compare(self,ps_table,threshold=1,delta_threshold=0):
         med_stats = {}
         compare_stats = {}
         group_indices = self.get_group_indices(ps_table.get_samples())
@@ -217,10 +217,10 @@ class Manifest:
             for group_name,group_values in values_by_group.items():
                 control_name = self.controls[group_name]
                 if control_name:
-                    delta = medians[group_name] - medians[control_name]
+                    delta = medians[group_name] - medians[control_name]                        
                     if len(group_values)>2 and len(values_by_group[control_name])>2:
                         D,pval = ranksums(group_values, values_by_group[control_name])
-                        if pval < threshold:
+                        if pval < threshold and delta > delta_threshold:
                             to_add = True
                     else:
                         pval = None
