@@ -52,13 +52,9 @@ def main():
     config = get_config(args.config_file)
     check_args_and_config(args=args,config=config)
 
-    if args.manifest:
-        manifest = Manifest(filename=args.manifest)
-    else:
-        manifest = Manifest()
+    manifest = Manifest(filename=args.manifest)
 
-    if args.ps_table:
-        ps_table = Table(filename=args.ps_table,store=None)
+    ps_table = Table(filename=args.ps_table,store=None)
 
     if args.mode == "compare":
         print("Comparing sample gourps...")
@@ -250,6 +246,7 @@ class Manifest:
         med_stats = {}
         compare_stats = {}
         group_indices = self.get_group_indices(ps_table.get_samples())
+        print(group_indices)
         import multiprocessing
         n = 48
         buffer_ratio = 10

@@ -66,4 +66,105 @@ class Gene:
         self.splice_intervals = splice_intervals
         self.transcripts = transcripts
 
+    #### Intervals class
 
+class Intervals(list):
+
+    @staticmethod
+    def parse_interval(string):
+        name,span,strand = string.split(":")
+        left,right = (int(s) for s in span.split("-"))
+        return (name,left,right,strand)
+
+    @staticmethod
+    def get_string(name,left,right,strand):
+        return f"{name}:{left}-{right}:{strand}"
+    
+    def __init__(self,intervals=[],contigs={}):
+        if contigs:
+            self.contigs = contigs
+            if not intervals:
+                intervals = self.get_intervals(contigs)
+        list.__init__(self,intervals)
+        # Store properties
+        self.index = {interval:i for i,interval in enumerate(self.intervals)}
+        self.n = len(self.intervals)
+        self.exclusions = {}
+
+    def get_contigs(self,intervals):
+        contigs = {}
+        for i,interval in enumerate(intervals):
+            name,left,right,strand = self.parse_interval(interval)
+            try:
+                contigs[(name,strand)].append((left,right,i))
+            except KeyError:
+                contigs[(name,strand)] = [(left,right,i)]
+        for span_list in contigs.values():
+            span_list.sort()
+        return contigs
+
+    def get_intervals(self,contigs):
+        intervals = []
+        for contig,spans in contigs.items():
+            name,strand = contig
+            for left,right in spans:
+                intervals.append(f"{name}:{left}-{right}:{strand}")
+        return intervals
+
+
+    def read_exclusion(self,exclusion_file):
+        exclusions = {}
+        with open(exclusion_file) as tsv:
+            for line in tsv:
+                interval,exclusive = line.rstrip().split("\t")
+                exclusions[interval] = exclusive.split(",") # <<<--------- CHECK THIS CHARACTER
+        return exclusions
+
+    def find_exclusion(self,contigs):
+        exclusions = {}
+        for contig,span_list in contigs.items():
+            span_list.sort()
+            exclusions[contig] = {}
+            active = []
+            for new_span in span_list:
+                left = new_span[0]
+                exclusions[contig][new_span] = []
+                new_active = []
+                for span in active:
+                    if left <= span[1]:
+                        exclusions[contig][span].append(new_span)
+                        exclusions[contig][new_span].append(span)
+                        new_active.append(span)
+                new_active.append(new_span)
+                active = new_active
+                exclusions[contig][new_span].append(new_span)
+        return exclusions
+    
+    def combine(self,other,keep="union"):
+        if keep == "union":
+            contigs = self.contigs.items() ^ other.contigs.items()
+            for contig in self.contigs.keys():
+                if contig in other.contigs:
+                    contigs[contig] = sorted(set(self.contigs[contig]).intersection(set(other.contigs[contig])))
+        elif keep == "intersection":
+            contigs = {}
+            for contig in self.contigs.keys():
+                if contig in other.contigs:
+                    contigs[contig] = sorted(set(self.contigs[contig]).intersection(set(other.contigs[contig])))
+        return Intervals(contigs=contigs)
+    
+    def intersection(self,other):
+        contigs = {}
+        for contig in self.contigs.keys():
+            if contig in other.contigs:
+                contigs[contig] = sorted(set(self.contigs[contig]).intersection(set(other.contigs[contig])))
+        return Intervals(contigs=contigs)
+    
+    def union(self,other):
+        contigs = self.contigs.items() ^ other.contigs.items()
+        for contig in self.contigs.keys():
+            if contig in other.contigs:
+                contigs[contig] = sorted(set(self.contigs[contig]).intersection(set(other.contigs[contig])))
+        return Intervals(contigs=contigs)
+
+#### ####               #### ####
