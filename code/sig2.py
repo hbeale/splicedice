@@ -262,6 +262,7 @@ class Manifest:
                     continue
                 interval,stats = item
                 for s in stats:
+                    print(s)
                     if s[0] and abs(s[0])>delta_threshold and s[1] and s[1] < threshold:
                         print(stats)
                         compare_stats[interval] = stats
