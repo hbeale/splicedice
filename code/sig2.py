@@ -341,22 +341,6 @@ class Manifest:
         return samples,queries,pvals
     
 
-#### Signature Class ####    
-class Signature:
-    def __init__(self,label=None,manifest=None,samples=[],control_group=None):
-        
-        # Saving or instantiating sample group information
-        self.label = label
-        self.manifest = manifest
-        self.samples = samples
-        self.control = control_group
-
-    def add_sample(self,sample):
-        self.samples.append(sample)
-        
-    def add_control(self,control_group):
-        self.control = control_group
-        
 
 
         
