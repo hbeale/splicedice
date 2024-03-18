@@ -234,10 +234,13 @@ class Manifest:
     
     def significant_intervals(self,compare_stats,threshold=0.001):
         significant = set()
+        d_count = 0
         for interval,data in compare_stats.items():
             for d in data:
                 if d[0] and (d[0] > 0.1 or d[0] < -0.1) and d[1] and d[1] < threshold :
                     significant.add(interval)
+                    d_count += 1
+                    print(d_count,d)
                     break
         return significant
     
