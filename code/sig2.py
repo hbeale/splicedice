@@ -222,6 +222,7 @@ class Manifest:
                     delta = medians[group_name] - medians[control_name]                        
                     if len(group_values)>2 and len(values_by_group[control_name])>2:
                         D,pval = ranksums(group_values, values_by_group[control_name])
+
                         if pval < threshold and delta > delta_threshold:
                             to_add = True
                             print(pval,delta)
@@ -261,6 +262,7 @@ class Manifest:
                     if done_count == n-2:
                         break
                     continue
+                print(item)
                 if item[0] < threshold and abs(item[0]) > delta_threshold:
                     compare_stats[item[0]] = item[1]
             read_process.join()
