@@ -185,8 +185,7 @@ class Manifest:
                         stats[interval].extend(v)
                 intervals = which_stat.keys()
         for name in groups:
-            if med_stats:
-                header.extend([f"median_{name}",f"mean_{name}",f"delta_{name}",f"pval_{name}"])
+            header.extend([f"median_{name}",f"mean_{name}",f"delta_{name}",f"pval_{name}"])
         with open(f"{output_prefix}.sig.tsv",'w') as tsv:
             tab = '\t'
             tsv.write(f"{tab.join(header)}\n")
@@ -202,7 +201,10 @@ class Manifest:
             tab = '\t'
             tsv.write(f"{tab.join(header)}\n")
             for interval in intervals:
-                tsv.write(f"{interval}\t{tab.join(str(x) for x in beta_stats[interval])}\n")
+                mabs = []
+                for mab in beta_stats[interval]:
+                    mabs.extend(str(x) for x in mab)
+                tsv.write(f"{interval}\t{tab.join(mabs)}\n")
 
     def write_pvals(self,output_prefix,samples,queries,pvals):
         with open(f"{output_prefix}.pvals.tsv",'w') as tsv:
