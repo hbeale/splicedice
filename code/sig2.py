@@ -59,17 +59,22 @@ def main():
         ps_table = Table(filename=args.ps_table,store=None)
 
     if args.mode == "compare":
+        print("Comparing...")
         groups,med_stats,compare_stats = manifest.compare(ps_table)
+        print("Writing...")
         manifest.write_sig(args.output_prefix,groups,med_stats,compare_stats)
 
 
     elif args.mode == "fit_beta":
         if args.sig_file:
+            print("Reading...")
             groups,compare_stats = manifest.read_sig(args.sig_file,get="compare")
-            beta_stats = manifest.fit_betas(ps_table,compare_stats)
         else:
+            print("Comparing...")
             groups,med_stats,compare_stats = manifest.compare(ps_table,threshold=0.001)
-            beta_stats = manifest.fit_betas(ps_table,compare_stats)
+        print("Fitting...")
+        beta_stats = manifest.fit_betas(ps_table,compare_stats)
+        print("Writing...")
         manifest.write_sig(args.output_prefix,groups=groups,beta_stats=beta_stats)
 
     elif args.mode == "query":
