@@ -37,8 +37,8 @@ class Beta:
 class Multi:
 
     @staticmethod
-    def mp_reader(read_function,filter_function,q,n): 
-        for item in read_function(filter_function):
+    def mp_reader(read_function,info,q,n): 
+        for item in read_function(info):
             q.put(item)
 
         for i in range(n):

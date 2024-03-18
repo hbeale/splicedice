@@ -70,7 +70,7 @@ def main():
             print("Reading...")
             groups,compare_stats = manifest.read_sig(args.sig_file,get="compare")
         else:
-            print("Comparing...")
+            print("Comparing for fit...")
             groups,med_stats,compare_stats = manifest.compare(ps_table,threshold=0.001,delta_threshold=0.1)
 
         print("** compare_stats ***",compare_stats)
@@ -234,6 +234,59 @@ class Manifest:
                 compare_stats[interval] = stats
                 med_stats[interval] = [[medians[group_name],np.mean(group_values)] for group_name,group_values in values_by_group.items()]
         return list(group_indices.keys()),med_stats,compare_stats
+    
+    def compare_multi(self,ps_table,threshold=0.001,delta_threshold=0):
+
+        med_stats = {}
+        compare_stats = {}
+        group_indices = self.get_group_indices(ps_table.get_samples())
+        import multiprocessing
+        n = 36
+        buffer_ratio = 10
+        with multiprocessing.Manager() as manager:
+            q1 = manager.Queue(maxsize = n * buffer_ratio)
+            q2 = manager.Queue()
+            o = manager.dict()
+            read_process = multiprocessing.Process(target=Multi.mp_reader,
+                                                   args=(ps_table.get_rows,None,q1,n))
+            read_process.start()
+            pool = [multiprocessing.Process(target=Multi.mp_do_rows,args=(q1,self.row_compare,group_indices,q2)) for n in range(n-2)] 
+            for p in pool:
+                p.start()
+            done_count = 0
+            while True:
+                item = q2.get()
+                if item == "DONE":
+                    done_count += 1
+                    if done_count == n-2:
+                        break
+                    continue
+                if item[0] < threshold and abs(item[0]) > delta_threshold:
+                    compare_stats[item[0]] = item[1]
+            read_process.join()
+            for p in pool:
+                p.join()
+        return compare_stats
+    
+    def row_compare(self,item,group_indices):
+        interval,row = item
+    
+        nan_check = [np.isnan(x) for x in row]
+        values_by_group = {g_name:[row[i] for i in index if not nan_check[i]] for g_name,index in group_indices.items()}
+        medians = {g:np.median(values) for g,values in values_by_group.items()}
+        stats = [] 
+        for group_name,group_values in values_by_group.items():
+            control_name = self.controls[group_name]
+            if control_name:
+                delta = medians[group_name] - medians[control_name]                        
+                if len(group_values)>2 and len(values_by_group[control_name])>2:
+                    D,pval = ranksums(group_values, values_by_group[control_name])
+                else:
+                    pval = None
+            else:
+                delta,pval = None,None
+            stats.append([delta,pval])
+        return interval,stats
     
     def significant_intervals(self,compare_stats,threshold=0.001):
         significant = set()
