@@ -228,7 +228,7 @@ class Manifest:
                 med_stats[interval] = [[medians[group_name],np.mean(group_values)] for group_name,group_values in values_by_group.items()]
         return list(group_indices.keys()),med_stats,compare_stats
     
-    def significant_intervals(self,compare_stats,threshold=0.05):
+    def significant_intervals(self,compare_stats,threshold=0.001):
         significant = set()
         for interval,data in compare_stats.items():
             for d in data:
@@ -294,8 +294,8 @@ class Manifest:
     def query(self,ps_table,groups,beta_stats):
         import multiprocessing
         interval_set = set(beta_stats.keys())
-        n = 12
-        buffer_ratio = 10
+        n = 36
+        buffer_ratio = 8
         with multiprocessing.Manager() as manager:
             q1 = manager.Queue(maxsize = n * buffer_ratio)
             q2 = manager.Queue()
