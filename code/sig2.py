@@ -311,6 +311,7 @@ class Manifest:
 
     def fit_betas(self,ps_table,compare_stats):
         interval_set = self.significant_intervals(compare_stats)
+        print("significant intervals:",len(interval_set))
         group_indices = self.get_group_indices(ps_table.get_samples())
         beta_stats = {}
         import multiprocessing
