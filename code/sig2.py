@@ -74,6 +74,7 @@ def main():
             groups,med_stats,compare_stats = manifest.compare_multi(ps_table,threshold=0.001,delta_threshold=0.1)
 
         print("Fitting...")
+        print(compare_stats)
         beta_stats = manifest.fit_betas(ps_table,compare_stats)
         print("Writing...")
         manifest.write_sig(args.output_prefix,groups=groups,beta_stats=beta_stats)
