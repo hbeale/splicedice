@@ -236,7 +236,7 @@ class Manifest:
         significant = set()
         for interval,data in compare_stats.items():
             for d in data:
-                if d[1] and d[1] < threshold:
+                if d[0] and (d[0] > 0.1 or d[0] < -0.1) and d[1] and d[1] < threshold :
                     significant.add(interval)
                     break
         return significant
