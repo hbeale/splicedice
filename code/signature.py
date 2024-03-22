@@ -31,7 +31,7 @@ def get_args():
                         help = "Optional. For adjusting parameters of splicing analysis.")
     parser.add_argument("-ctrl","--control_name",default=None,
                         help="Sample group label that represents control for comparative analysis (default is first group in manifest).")
-    parser.add_argument("-n","--n_threads",default=1,
+    parser.add_argument("-n","--n_threads",default=4,
                         help="Maximum number of processes to use at the same time.")
     return parser.parse_args()
      
@@ -52,7 +52,7 @@ def main():
     config = get_config(args.config_file)
     check_args_and_config(args=args,config=config)
 
-    manifest = Manifest(filename=args.manifest)
+    manifest = Manifest(filename=args.manifest,n_threads=32)
 
     ps_table = Table(filename=args.ps_table,store=None)
 
@@ -87,12 +87,13 @@ def main():
 
 #### Manifest Class ####    
 class Manifest:
-    def __init__(self,filename=None,control_name=None):
+    def __init__(self,filename=None,control_name=None,n_threads=4):
         self.samples = []
         self.groups = {}
         self.get_group = {}
         self.beta = Beta()
         self.controls = {}
+        self.n_threads = n_threads
         if filename:
             with open(filename) as manifest_file:
                 for line in manifest_file:
@@ -248,7 +249,7 @@ class Manifest:
         group_indices = self.get_group_indices(ps_table.get_samples())
         print(group_indices)
         import multiprocessing
-        n = 48
+        n = self.n_threads
         buffer_ratio = 10
         with multiprocessing.Manager() as manager:
             q1 = manager.Queue(maxsize = n * buffer_ratio)
@@ -323,7 +324,7 @@ class Manifest:
         group_indices = self.get_group_indices(ps_table.get_samples())
         beta_stats = {}
         import multiprocessing
-        n = 48
+        n = self.n_threads
         buffer_ratio = 10
         with multiprocessing.Manager() as manager:
             q1 = manager.Queue(maxsize = n * buffer_ratio)
@@ -366,7 +367,7 @@ class Manifest:
     def query(self,ps_table,groups,beta_stats):
         import multiprocessing
         interval_set = set(beta_stats.keys())
-        n = 36
+        n = self.n_threads
         buffer_ratio = 8
         with multiprocessing.Manager() as manager:
             q1 = manager.Queue(maxsize = n * buffer_ratio)
