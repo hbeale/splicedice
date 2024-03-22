@@ -91,3 +91,57 @@ class Table:
                         if row[0] in interval_set:
                             yield (row[0],[float(x) for x in row[1:]])
                         
+#### Annotation class ####
+class Annotation:
+    def __init__(self,gtf_filename):
+        self.intervals,self.contigs,self.exons,self.genes = self.getAnnotated(gtf_filename)
+
+    def getAnnotated(self,gtf_filename):
+        transcripts = {}
+        exons = {}
+        with open(gtf_filename) as gtf:
+            for line in gtf:
+                if line.startswith("#"):
+                    continue
+                row = line.rstrip().split('\t')
+                info = {}
+                for x in row[8].split(';'):
+                    item = x.split('"')
+                    info[item[0].rstrip()] = item[1]
+                contig = row[0]
+                strand = row[6]
+                start = int(row[3])
+                stop = int(row[4])-1
+                if row[2] == "transcript":
+                    transcripts[info['trascript_id']] = [(contig,strand,info['gene_name']),[]]
+                elif row[2] == "exon":
+                    try:
+                        exons[(contig,strand)].add((start,stop))
+                    except KeyError:
+                        exons[(contig,strand)] = set()
+                        exons[(contig,strand)].add((start,stop))
+                    transcripts[info['trascript_id']][1].append((start,stop))
+        
+        for key,values in exons.items():
+            exons[key] = sorted(values)
+            
+        intervals = {}
+        contigs = {}
+        genes = {}
+        for transcript_id,info in transcripts.items():
+            contig,strand,gene_name = info[0]
+            for i in range(len(info[1])-1):
+                left = info[1][i][1]
+                right = info[1][i+1][0]
+                interval = f"{contig}:{left}-{right}:{strand}"
+                contigs[(contig,strand)].add(interval)
+                if interval in intervals:
+                    intervals[interval].append(transcript_id)
+                    if gene_name not in genes[interval]:
+                        genes[interval].append[gene_name]
+                else:
+                    intervals[interval] = [transcript_id]
+                    genes[interval] = [gene_name]
+        return intervals,contigs,exons,genes
+    
+
