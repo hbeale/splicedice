@@ -80,7 +80,7 @@ def main():
 
     elif args.mode == "query":
         print("Reading...")
-        groups,beta_stats = manifest.read_beta(args.beta_file,get="beta")
+        groups,beta_stats = manifest.read_beta(args.beta_file)
         print("Querying...")
         samples,queries,pvals = manifest.query(ps_table,groups,beta_stats)
         print("Writing...")
