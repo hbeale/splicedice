@@ -23,6 +23,8 @@ def get_args():
                         help="Filename and path for .ps.tsv file, output from MESA.")
     parser.add_argument("-s","--sig_file",default=None,
                         help="Filename and path for .sig.tsv file, previously output from splicedice.")
+    parser.add_argument("-b","--beta_file",default=None,
+                        help="Filename and path for .beta.tsv file, previously output from fit_beta.")
     parser.add_argument("-a","--annotation",default=None,
                         help="GTF or splice_annotation.tsv file with gene annotation (optional for labeling/filtering)")
     parser.add_argument("-o","--output_prefix",
@@ -65,7 +67,7 @@ def main():
     elif args.mode == "fit_beta":
         if args.sig_file:
             print("Reading...")
-            groups,compare_stats = manifest.read_sig(args.sig_file,get="compare")
+            groups,compare_stats = manifest.read_sig(args.sig_file)
         else:
             print("Testing for differential splicing...")
             groups,med_stats,compare_stats = manifest.compare_multi(ps_table,threshold=0.05,delta_threshold=0.05)
@@ -78,7 +80,7 @@ def main():
 
     elif args.mode == "query":
         print("Reading...")
-        groups,beta_stats = manifest.read_sig(args.sig_file,get="beta")
+        groups,beta_stats = manifest.read_beta(args.beta_file,get="beta")
         print("Querying...")
         samples,queries,pvals = manifest.query(ps_table,groups,beta_stats)
         print("Writing...")
@@ -117,15 +119,41 @@ class Manifest:
                 group_indices[self.get_group[s]].append(i)
         return {k:v for k,v in group_indices.items() if len(v) > 0}
     
-    def read_sig(self,sig_file,get="all"):
-        med_stats = {}
-        compare_stats = {}
+
+    def read_beta(self,beta_file):
         beta_stats = {}
+        with open(beta_file) as tsv:
+            header = tsv.readline().rstrip().split("\t")[1:]
+            groups = {}
+            for i,column in enumerate(header):
+                info_type,group_name = column.split("_",1)
+                if group_name not in groups:
+                    groups[group_name] = {}
+                groups[group_name][info_type] = i
+            for line in tsv:
+                row = line.rstrip().split('\t')
+                interval = row[0]
+                beta_stats[interval] = []
+                row = row[1:]
+                for i,x in enumerate(row):
+                    try:
+                        row[i] = float(x)
+                    except ValueError:
+                        row[i] = float('nan')
+                for group_name in groups:
+                    median = row[groups[group_name]["median"]]
+                    alpha = row[groups[group_name]["alpha"]]
+                    beta = row[groups[group_name]["beta"]]
+                    beta_stats[interval].append([median,alpha,beta])
+            
+        groups = list(groups.keys())
+        return groups,beta_stats
+    
+    def read_sig(self,sig_file):
+        compare_stats = {}
         with open(sig_file) as tsv:
             columns = tsv.readline().rstrip().split("\t")[1:]
-            index = []
             groups = {}
-            offset = {}
             for i,column in enumerate(columns):
                 info_type,group_name = column.split("_",1)
                 if group_name not in groups:
@@ -134,14 +162,7 @@ class Manifest:
             for line in tsv:
                 row = line.rstrip().split('\t')
                 interval = row[0]
-
-                if get == "all":
-                    med_stats[interval] = []
-                if get == "compare" or get == "all":
-                    compare_stats[interval] = []
-                if get == "beta" or get == "all":
-                    beta_stats[interval] = []
-
+                compare_stats[interval] = []
                 row = row[1:]
                 for i,x in enumerate(row):
                     try:
@@ -149,28 +170,12 @@ class Manifest:
                     except ValueError:
                         row[i] = float('nan')
                 for group_name in groups:
-                    if get == "all":
-                        median = row[groups[group_name]["median"]]
-                        mean = row[groups[group_name]["mean"]]
-                        med_stats[interval].append([median,mean])
-                    if get == "compare" or get == "all":
-                        delta = row[groups[group_name]["delta"]]
-                        pval = row[groups[group_name]["pval"]]
-                        compare_stats[interval].append([delta,pval])
-                    if get == "beta" or get == "all":
-                        median = row[groups[group_name]["median"]]
-                        alpha = row[groups[group_name]["alpha"]]
-                        beta = row[groups[group_name]["beta"]]
-                        beta_stats[interval].append([median,alpha,beta])
-            
+                    delta = row[groups[group_name]["delta"]]
+                    pval = row[groups[group_name]["pval"]]
+                    compare_stats[interval].append([delta,pval])
         groups = list(groups.keys())
-        if get == "all":
-            return groups,med_stats,compare_stats,beta_stats
-        elif get == "compare":
-            return groups,med_stats,compare_stats
-        elif get == "beta":
-            return groups,beta_stats
-        
+        return groups,compare_stats
+          
     def write_sig(self,output_prefix,groups=None,med_stats=None,compare_stats=None):
         header = ["splice_interval"]
         stats = {}
@@ -247,7 +252,9 @@ class Manifest:
         med_stats = {}
         compare_stats = {}
         group_indices = self.get_group_indices(ps_table.get_samples())
-        print(group_indices)
+
+        sizes = [f"{k} ({len(v)})" for k,v in group_indices.items()]
+        print(f"Groups: {', '.join(sizes)}")
         import multiprocessing
         n = self.n_threads
         buffer_ratio = 10
