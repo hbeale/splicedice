@@ -131,10 +131,9 @@ class Manifest:
                     groups[group_name] = {}
                 groups[group_name][info_type] = i
             for line in tsv:
-                row = line.rstrip().split('\t')
+                row = line.rstrip('\n').split('\t')
                 interval = row[0]
                 beta_stats[interval] = []
-                print(len(row))
                 row = row[1:]
                 for i,x in enumerate(row):
                     try:
@@ -143,7 +142,6 @@ class Manifest:
                         row[i] = float('nan')
                 for group_name in groups:
                     median = row[groups[group_name]["median"]]
-                    #print(row,len(row),groups[group_name]["alpha"])
                     alpha = row[groups[group_name]["alpha"]]
                     beta = row[groups[group_name]["beta"]]
                     beta_stats[interval].append([median,alpha,beta])
