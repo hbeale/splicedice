@@ -142,10 +142,11 @@ class Manifest:
                         row[i] = float('nan')
                 for group_name in groups:
                     median = row[groups[group_name]["median"]]
+                    print(row,len(row),roups[group_name]["alpha"])
                     alpha = row[groups[group_name]["alpha"]]
                     beta = row[groups[group_name]["beta"]]
                     beta_stats[interval].append([median,alpha,beta])
-            
+
         groups = list(groups.keys())
         return groups,beta_stats
     
