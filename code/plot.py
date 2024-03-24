@@ -90,7 +90,7 @@ class PvalMatrix:
                 panel.text(j+1,i+1,self.group_counts[i][j],color=text(p),va='center',ha='center')
         panel.set_xlim(0.5,len(self.xlabels)+.5)
         panel.set_ylim(0.5,len(self.ylabels)+.5)
-        plt.savefig(filename)
+        plt.savefig(f"{filename}_match.png")
 
 
 class PS_distribution:
@@ -119,16 +119,22 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-i","--input",
                         help="")
-    parser.add_argument("-p","--plot_options",
-                        help="")
-    parser.add_argument("-o","--output_file_prefix",
-                        help="")
+    parser.add_argument("-q","--query",default=None,
+                        help="Table of p-values from signature query (pvals.tsv).")
+    parser.add_argument("-m","--manifest",default=None,
+                        help="Manifest of samples with groups for combining or labeling.")
+    parser.add_argument("-o","--output_file_prefix",default="splicedice",
+                        help="Output path and filename before extensions [Default: 'splicedice']")
     return parser.parse_args()
+
+
 
 
 def main():
     args = get_args()
-
+    if args.query and args.manifest:
+        pmat = PvalMatrix(args.query,args.manifest)
+        pmat.plot_table(args.out_prefix)
 
 
 if __name__=="__main__":
