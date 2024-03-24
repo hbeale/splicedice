@@ -214,9 +214,7 @@ class Manifest:
             tab = "\t"
             tsv.write(f"query\t{tab.join(samples)}\n")
             for i in range(len(queries)):
-                for j in range(len(queries)):
-                    if i != j:
-                        tsv.write(f"{queries[i][j]}\t{tab.join(str(x) for x in pvals[i][j])}\n")
+                tsv.write(f"{queries[i]}\t{tab.join(str(x) for x in pvals[i])}\n")
 
     def compare(self,ps_table,threshold=1,delta_threshold=0):
         med_stats = {}
@@ -379,7 +377,6 @@ class Manifest:
         with multiprocessing.Manager() as manager:
             q1 = manager.Queue(maxsize = n * buffer_ratio)
             q2 = manager.Queue()
-            o = manager.dict()
             samples = ps_table.get_samples()
             probs_by_sample = [[[] for j in range(len(samples))] for i in range(len(groups))]
             read_process = multiprocessing.Process(target=Multi.mp_reader,args=(ps_table.get_rows,interval_set,q1,n))
@@ -403,19 +400,23 @@ class Manifest:
             read_process.join()
             for p in pool:
                 p.join()
-        a = len(probs_by_sample)
-        pvals = [[[1 for k in range(len(samples))] for j in range(len(groups))] for i in range(len(groups))]
-        queries = [[f"{group_i}_over_{group_j}" for group_j in groups] for group_i in groups]
+        pvals = []
+        queries = []
 
         for i,group_of_probs in enumerate(probs_by_sample):
-            for j,comp_group_probs in enumerate(probs_by_sample):
-
-                if i==j:
-                    continue
-                for k,pair in enumerate(zip(group_of_probs,comp_group_probs)):
-                    first,second = pair
+            for j in range(i+1,len(probs_by_sample)):
+                comp_group_probs = probs_by_sample[j]
+                queries.append(f"{groups[i]}_over_{groups[j]}")
+                queries.append(f"{groups[j]}_over_{groups[i]}")
+                first_pvals = []
+                second_pvals = []
+                for first,second in zip(group_of_probs,comp_group_probs):
                     s,pval = ranksums(first,second,alternative="greater",nan_policy="omit")
-                    pvals[i][j][k] = pval
+                    first_pvals.append(pval)
+                    s,pval = ranksums(second,first,alternative="greater",nan_policy="omit")
+                    second_pvals.append(pval)
+                pvals.extend([first_pvals,second_pvals])
+
         return samples,queries,pvals
        
 # Run main
