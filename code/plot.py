@@ -44,10 +44,13 @@ class PvalMatrix:
     def read_pvals(self,pvals,groups,threshold=0.05):
         with open(pvals) as tsv:
             header = tsv.readline().split('\t')
-            group_indices = {group:[] for group in groups.values()}
+            group_indices = {v:[] for v in groups.values()}
+            
             for i,name in enumerate(header):
                 if name in groups:
                     group_indices[groups[name]].append(i)
+
+
             group_counts = []
             group_props = []
             labels = []
@@ -124,7 +127,7 @@ def get_args():
                         help="Table of p-values from signature query (pvals.tsv).")
     parser.add_argument("-m","--manifest",default=None,
                         help="Manifest of samples with groups for combining or labeling.")
-    parser.add_argument("-o","--output_file_prefix",default="splicedice",
+    parser.add_argument("-o","--out_prefix",default="splicedice",
                         help="Output path and filename before extensions [Default: 'splicedice']")
     return parser.parse_args()
 
@@ -134,7 +137,7 @@ def get_args():
 def main():
     args = get_args()
     if args.query and args.manifest:
-        pmat = PvalMatrix(args.query,args.manifest)
+        pmat = PvalMatrix(args.manifest,args.query)
         pmat.plot_table(args.out_prefix)
 
 
