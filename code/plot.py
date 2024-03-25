@@ -3,7 +3,7 @@ import matplotlib.patches as patches
 from scipy import stats
 import numpy as np
 import time
-
+from tools import Table
 
 def get_color(x):
     if x < 0.5:
@@ -94,17 +94,18 @@ class PvalMatrix:
 
 
 class PS_distribution:
-    def __init__(self,values,label):
-        self.fig = plt.figure(figsize=(6,4))
+    def __init__(self,ps_table,intervals,group_indices=None):
+        self.values = []
+        self.group_indices = group_indices
+        for interval,row in ps_table.get_rows(intervals):
+            self.values[interval] = row
         
-        self.fig.hist(values)
-
-    def add_beta(self,a,b):
+    def beta_points(self,a,b,xdist=0.005):
         xs,ys = [],[]
-        for x in np.arange(0.005,1,0.005):
+        for x in np.arange(xdist/2,1,xdist):
             xs.append(x)
             ys.append(stats.beta.pdf(x,(a,b)))
-        self.fig.plot(xs,ys)
+        return xs,ys
         
     def save_fig(self,out_prefix,dpi=600):
         self.fig.save_fig(f"{out_prefix}.{time.time()}.png",dpi=dpi)
