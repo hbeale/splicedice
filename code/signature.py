@@ -33,8 +33,10 @@ def get_args():
                         help = "Optional. For adjusting parameters of splicing analysis.")
     parser.add_argument("-ctrl","--control_name",default=None,
                         help="Sample group label that represents control for comparative analysis (default is first group in manifest).")
-    parser.add_argument("-n","--n_threads",default=4,
+    parser.add_argument("-n","--n_threads",default=4,type=int,
                         help="Maximum number of processes to use at the same time.")
+    parser.add_argument("-k","--threshold",default=0.05,type=float,
+                       help="")
     return parser.parse_args()
      
 def check_args_and_config(args,config):
@@ -54,13 +56,13 @@ def main():
     config = get_config(args.config_file)
     check_args_and_config(args=args,config=config)
 
-    manifest = Manifest(filename=args.manifest,n_threads=32)
+    manifest = Manifest(filename=args.manifest,n_threads=args.n_threads,threshold=args.threshold)
 
     ps_table = Table(filename=args.ps_table,store=None)
 
     if args.mode == "compare":
-        print("Comparing sample gourps...")
-        groups,med_stats,compare_stats = manifest.compare(ps_table)
+        print("Testing for differential splicing...")
+        groups,med_stats,compare_stats = manifest.compare_multi(ps_table,threshold=args.threshold,delta_threshold=0.05)
         print("Writing...")
         manifest.write_sig(args.output_prefix,groups,med_stats,compare_stats)
 
@@ -68,6 +70,7 @@ def main():
         if args.sig_file:
             print("Reading...")
             groups,compare_stats = manifest.read_sig(args.sig_file)
+            med_stats = None
         else:
             print("Testing for differential splicing...")
             groups,med_stats,compare_stats = manifest.compare_multi(ps_table,threshold=0.05,delta_threshold=0.05)
@@ -75,7 +78,8 @@ def main():
         print("Fitting beta distributions...")
         beta_stats = manifest.fit_betas(ps_table,compare_stats)
         print("Writing files...")
-        manifest.write_sig(args.output_prefix,groups=groups,med_stats=med_stats,compare_stats=compare_stats)
+        if med_stats:
+            manifest.write_sig(args.output_prefix,groups=groups,med_stats=med_stats,compare_stats=compare_stats)
         manifest.write_beta(args.output_prefix,groups=groups,beta_stats=beta_stats)
 
     elif args.mode == "query":
@@ -89,13 +93,14 @@ def main():
 
 #### Manifest Class ####    
 class Manifest:
-    def __init__(self,filename=None,control_name=None,n_threads=4):
+    def __init__(self,filename=None,control_name=None,n_threads=4,threshold=0.05):
         self.samples = []
         self.groups = {}
         self.get_group = {}
         self.beta = Beta()
         self.controls = {}
         self.n_threads = n_threads
+        self.threshold = threshold
         if filename:
             with open(filename) as manifest_file:
                 for line in manifest_file:
@@ -152,7 +157,7 @@ class Manifest:
     def read_sig(self,sig_file):
         compare_stats = {}
         with open(sig_file) as tsv:
-            columns = tsv.readline().rstrip().split("\t")[1:]
+            columns = tsv.readline().rstrip('\n').split("\t")[1:]
             groups = {}
             for i,column in enumerate(columns):
                 info_type,group_name = column.split("_",1)
@@ -160,7 +165,7 @@ class Manifest:
                     groups[group_name] = {}
                 groups[group_name][info_type] = i
             for line in tsv:
-                row = line.rstrip().split('\t')
+                row = line.rstrip('\n').split('\t')
                 interval = row[0]
                 compare_stats[interval] = []
                 row = row[1:]
@@ -177,23 +182,17 @@ class Manifest:
         return groups,compare_stats
           
     def write_sig(self,output_prefix,groups=None,med_stats=None,compare_stats=None):
-        header = ["splice_interval"]
-        stats = {}
-        for which_stat in [med_stats,compare_stats]:
-            if which_stat:
-                for interval,values in which_stat.items():
-                    if interval not in stats:
-                        stats[interval] = []
-                    for v in values:
-                        stats[interval].extend(v)
-                intervals = which_stat.keys()
+        header = ["splice_interval"]        
         for name in groups:
             header.extend([f"median_{name}",f"mean_{name}",f"delta_{name}",f"pval_{name}"])
         with open(f"{output_prefix}.sig.tsv",'w') as tsv:
             tab = '\t'
             tsv.write(f"{tab.join(header)}\n")
-            for interval in intervals:
-                tsv.write(f"{interval}\t{tab.join(str(x) for x in stats[interval])}\n")
+            for interval in compare_stats.keys():
+                row = [interval]
+                for m,c in zip(med_stats[interval],compare_stats[interval]):
+                    row.append(f'{m[0]}\t{m[1]}\t{c[0]}\t{c[1]}')
+                tsv.write(f"{tab.join(row)}\n")
 
     def write_beta(self,output_prefix,groups=None,beta_stats=None,):
         header = ["splice_interval"]
@@ -274,10 +273,11 @@ class Manifest:
                     if done_count == n-2:
                         break
                     continue
-                interval,stats = item
-                for s in stats:
+                interval,m_stats,c_stats = item
+                for s in c_stats:
                     if s[0] and abs(s[0])>delta_threshold and s[1] and s[1] < threshold:
-                        compare_stats[interval] = stats
+                        compare_stats[interval] = c_stats
+                        med_stats[interval] = m_stats
                         break
             read_process.join()
             for p in pool:
@@ -290,7 +290,8 @@ class Manifest:
         nan_check = [np.isnan(x) for x in row]
         values_by_group = {g_name:[row[i] for i in index if not nan_check[i]] for g_name,index in group_indices.items()}
         medians = {g:np.median(values) for g,values in values_by_group.items()}
-        stats = [] 
+        c_stats = []
+        m_stats = []
         for group_name,group_values in values_by_group.items():
             control_name = self.controls[group_name]
             if control_name:
@@ -301,15 +302,16 @@ class Manifest:
                     pval = None
             else:
                 delta,pval = None,None
-            stats.append([delta,pval])
-        return interval,stats
+            c_stats.append([delta,pval])
+            m_stats.append([medians[group_name],np.mean(group_values)])
+        return interval,m_stats,c_stats
     
-    def significant_intervals(self,compare_stats,threshold=0.05):
+    def significant_intervals(self,compare_stats):
         significant = set()
         d_count = 0
         for interval,data in compare_stats.items():
             for d in data:
-                if d[0] and abs(d[0]) > 0.1 and d[1] and d[1] < threshold :
+                if d[0] and abs(d[0]) > 0.1 and d[1] and d[1] < self.threshold :
                     significant.add(interval)
                     d_count += 1
                     break
