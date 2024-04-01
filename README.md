@@ -17,13 +17,10 @@ As input for the signature analysis, spliceDICE requires a table of percent-spli
 | -------- | --------
 | sample 1 | group A
 | sample 2 | group A
-| sample 3 | group A
+| sample 3 | group B
 | sample 4 | group B
-| sample 5 | group B
-| sample 6 | group B
-| sample 7 | control
-| sample 8 | control
-| sample 9 | control
+| sample 5 | control
+| sample 6 | control
 
 The recommended workflow is to first test for differential splicing, then use that set of significant splice intervals to generate a splicing signature. New samples can be queried against the signature to determine if they are a statistically significant match.
 
