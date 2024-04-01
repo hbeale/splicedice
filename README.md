@@ -5,22 +5,22 @@ Currently contains the signature subprogram, which can perform differential spli
 
 # Installation
 All programs run as basic python programs. The current requirements are:
--python 3.7+
--numpy
--scipy
--matplotlib
+*python 3.7+
+*numpy
+*scipy
+*matplotlib
 
 # Usage
 As input for the signature analysis, spliceDICE requires a table of percent-spliced values, previously output from spliceDICE or MESA, and a manifest (a tab-separated file with lists of samples and their group labels).
-sample 1  group A
-sample 2  group A
-sample 3  group A
-sample 4  group B
-sample 5  group B
-sample 6  group B
-sample 7  control
-sample 8  control
-sample 9  control
+sample 1 | group A
+sample 2 | group A
+sample 3 | group A
+sample 4 | group B
+sample 5 | group B
+sample 6 | group B
+sample 7 | control
+sample 8 | control
+sample 9 | control
 
 The recommended workflow is to first test for differential splicing, then use that set of significant splice intervals to generate a splicing signature. New samples can be queried against the signature to determine if they are a statistically significant match.
 
