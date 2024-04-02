@@ -31,6 +31,5 @@ def get_config(filename=None,extra_args=""):
                     value = int(value)
             except ValueError:
                 pass
-                print("pass")
             config[attribute] = value
         return config
