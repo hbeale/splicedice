@@ -24,13 +24,11 @@ def get_config(filename=None,extra_args=""):
         if item:
             attribute,value = (x.strip() for x in item.split('='))
             try:
-                a = int(value)
-                b = float(value)
-                if a == b:
-                    value = a
+                print("try")
+                if '.' in value:
+                    value = float(value)
                 else:
-                    value = b
-                print(value)
+                    value = int(value)
             except ValueError:
                 pass
                 print("pass")
