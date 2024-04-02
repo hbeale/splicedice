@@ -316,7 +316,7 @@ class Manifest:
             pvals = []
             for interval,data in compare_stats.items():
                 if data[i][1] < self.threshold:
-                    pvals.append(data[i][1],data[i][0],interval)
+                    pvals.append((data[i][1],data[i][0],interval))
             pvals.sort()
             cursor = 0
             for i,pval_d_interval in enumerate(pvals):
