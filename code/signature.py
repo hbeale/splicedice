@@ -308,13 +308,24 @@ class Manifest:
     
     def significant_intervals(self,compare_stats):
         significant = set()
-        d_count = 0
-        for interval,data in compare_stats.items():
-            for d in data:
-                if d[0] and abs(d[0]) > 0.1 and d[1] and d[1] < self.threshold :
-                    significant.add(interval)
-                    d_count += 1
-                    break
+        n = len(compare_stats)
+        for data in compare_stats.values():
+            m = len(data)
+            break
+        for i in range(m):
+            pvals = []
+            for interval,data in compare_stats.items():
+                if data[i][1] < self.threshold:
+                    pvals.append(data[i][1],data[i][0],interval)
+            pvals.sort()
+            cursor = 0
+            for i,pval_d_interval in enumerate(pvals):
+                i += 1
+                if pval_d_interval[0] <= (i / n) * 0.05:
+                    cursor = i
+            for i in range(cursor):
+                if abs(pvals[i][1]) >= self.delta_threshold:
+                    significant.add(pvals[i][2])
         return significant
     
     def row_fit_beta(self,row,group_indices):
