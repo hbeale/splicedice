@@ -1,5 +1,5 @@
 default_config = {
-    "signifiance_threshold":0.05,
+    "significance_threshold":0.05,
     "delta_threshold":0.1,
     "beta_exclude_01s":False,
     "":"",
