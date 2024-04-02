@@ -35,6 +35,8 @@ def get_args():
                         help="Sample group label that represents control for comparative analysis (default is first group in manifest).")
     parser.add_argument("-n","--n_threads",default=4,type=int,
                         help="Maximum number of processes to use at the same time.")
+    parser.add_argument("-x","--extra_args",default="",
+                        help="Extra config arguments in this format: attribute1=x,attribute2=y")
     return parser.parse_args()
      
 def check_args_and_config(args,config):
@@ -51,8 +53,10 @@ def check_args_and_config(args,config):
 def main():
     # Arguments and configuration specifications
     args = get_args()
-    config = get_config(args.config_file)
+    config = get_config(args.config_file,args.extra_args)
     check_args_and_config(args=args,config=config)
+
+
 
     manifest = Manifest(filename=args.manifest,n_threads=args.n_threads,
                         threshold=config["significance_threshold"],

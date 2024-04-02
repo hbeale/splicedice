@@ -11,11 +11,25 @@ default_config = {
 
 }
 
-def get_config(filename=None):
+def get_config(filename=None,extra_args=""):
     config = default_config
     if filename:
         with open(filename) as txt:
             for line in txt:
                 row = line.rstrip().split('=')
                 config[row[0]] = row[1]
-    return config
+
+    for item in extra_args.split(','):
+        if item:
+            attribute,value = (x.strip() for x in item.split('='))
+            try:
+                a = int(value)
+                b = float(value)
+                if a == b:
+                    value = a
+                else:
+                    value = b
+            except ValueError:
+                pass
+            config[attribute] = value
+        return config
