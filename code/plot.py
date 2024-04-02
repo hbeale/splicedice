@@ -45,15 +45,12 @@ class PvalMatrix:
         with open(pvals) as tsv:
             header = tsv.readline().split('\t')
             group_indices = {v:[] for v in groups.values()}
-            
             for i,name in enumerate(header):
                 if name in groups:
                     group_indices[groups[name]].append(i)
-
-
             group_counts = []
             group_props = []
-            labels = []
+            ylabels = []
             for line in tsv:
                 row = line.rstrip().split('\t')
                 if "Tumor" in row[0]:
@@ -63,10 +60,10 @@ class PvalMatrix:
                 for index in group_indices.values():
                     counts.append(len([i for i in index if float(row[i])<threshold]))
                     props.append(counts[-1]/len(index))
-                labels.append(row[0])
+                ylabels.append(row[0])
                 group_counts.append(counts)
                 group_props.append(props)
-        return header[1:],labels,group_indices,group_counts,group_props
+        return header[1:],ylabels[::-1],group_indices,group_counts[::-1],group_props[::-1]
 
     def plot_table(self,filename,color=get_color,text=get_text_color):
         pw = .6 * len(self.xlabels)
