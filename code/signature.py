@@ -56,7 +56,7 @@ def main():
 
     manifest = Manifest(filename=args.manifest,n_threads=args.n_threads,
                         threshold=config["significance_threshold"],
-                        delta=config['delta_threshold'])
+                        delta_threshold=config['delta_threshold'])
 
     ps_table = Table(filename=args.ps_table,store=None)
 
