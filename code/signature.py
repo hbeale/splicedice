@@ -35,8 +35,6 @@ def get_args():
                         help="Sample group label that represents control for comparative analysis (default is first group in manifest).")
     parser.add_argument("-n","--n_threads",default=4,type=int,
                         help="Maximum number of processes to use at the same time.")
-    parser.add_argument("-k","--threshold",default=0.05,type=float,
-                       help="")
     return parser.parse_args()
      
 def check_args_and_config(args,config):
@@ -56,7 +54,9 @@ def main():
     config = get_config(args.config_file)
     check_args_and_config(args=args,config=config)
 
-    manifest = Manifest(filename=args.manifest,n_threads=args.n_threads,threshold=args.threshold)
+    manifest = Manifest(filename=args.manifest,n_threads=args.n_threads,
+                        threshold=config["significance_threshold"],
+                        delta=config['delta_threshold'])
 
     ps_table = Table(filename=args.ps_table,store=None)
 
@@ -93,7 +93,7 @@ def main():
 
 #### Manifest Class ####    
 class Manifest:
-    def __init__(self,filename=None,control_name=None,n_threads=4,threshold=0.05):
+    def __init__(self,filename=None,control_name=None,n_threads=4,threshold=0.05,delta_threshold=0):
         self.samples = []
         self.groups = {}
         self.get_group = {}
@@ -101,6 +101,7 @@ class Manifest:
         self.controls = {}
         self.n_threads = n_threads
         self.threshold = threshold
+        self.delta_threshold = delta_threshold
         if filename:
             with open(filename) as manifest_file:
                 for line in manifest_file:
