@@ -20,6 +20,7 @@ def get_config(filename=None,extra_args=""):
                 config[row[0]] = row[1]
 
     for item in extra_args.split(','):
+        print(item)
         if item:
             attribute,value = (x.strip() for x in item.split('='))
             try:
