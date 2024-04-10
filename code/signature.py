@@ -122,12 +122,25 @@ class Manifest:
                 self.controls[group_name] = control_name
             self.index = {sample:i for i,sample in enumerate(self.samples)}
 
-    def get_group_indices(self,samples):
-        group_indices = {k:[] for k in self.groups.keys()}
+    def get_group_indices(self,samples,anti=False):
+        group_indices = {}
+        grouped_samples = []
         for i,s in enumerate(samples):
             if s in self.get_group:
-                group_indices[self.get_group[s]].append(i)
-        return {k:v for k,v in group_indices.items() if len(v) > 0}
+                try:
+                    group_indices[self.get_group[s]].append(i)
+                except KeyError:
+                    group_indices[self.get_group[s]] = [i]
+                grouped_samples.append(s)
+        if anti:
+            anti_indices = {}
+            for name,group in group_indices.items():
+                anti_indices[name]  = [s for s in grouped_samples if s not in group]
+            return group_indices, anti_indices
+        else:
+            return group_indices
+            
+
     
 
     def read_beta(self,beta_file):
@@ -219,55 +232,24 @@ class Manifest:
             tsv.write(f"query\t{tab.join(samples)}\n")
             for i in range(len(queries)):
                 tsv.write(f"{queries[i]}\t{tab.join(str(x) for x in pvals[i])}\n")
-
-    def compare(self,ps_table,threshold=1,delta_threshold=0):
-        med_stats = {}
-        compare_stats = {}
-        group_indices = self.get_group_indices(ps_table.get_samples())
-        for interval,row in ps_table.get_rows():
-            nan_check = [np.isnan(x) for x in row]
-            values_by_group = {g_name:[row[i] for i in index if not nan_check[i]] for g_name,index in group_indices.items()}
-            medians = {g:np.median(values) for g,values in values_by_group.items()}
-            stats = [] 
-            to_add = False
-            for group_name,group_values in values_by_group.items():
-                control_name = self.controls[group_name]
-                if control_name:
-                    delta = medians[group_name] - medians[control_name]                        
-                    if len(group_values)>2 and len(values_by_group[control_name])>2:
-                        D,pval = ranksums(group_values, values_by_group[control_name])
-
-                        if pval < threshold and delta > delta_threshold:
-                            to_add = True
-                    else:
-                        pval = None
-                else:
-                    delta,pval = None,None
-                stats.append([delta,pval])
-            if to_add:
-                compare_stats[interval] = stats
-                med_stats[interval] = [[medians[group_name],np.mean(group_values)] for group_name,group_values in values_by_group.items()]
-        return list(group_indices.keys()),med_stats,compare_stats
     
     def compare_multi(self,ps_table,threshold=0.05,delta_threshold=0):
-
+        import multiprocessing
         med_stats = {}
         compare_stats = {}
-        group_indices = self.get_group_indices(ps_table.get_samples())
-
-        sizes = [f"{k} ({len(v)})" for k,v in group_indices.items()]
+        indices = self.get_group_indices(ps_table.get_samples(),anti=True)
+        sizes = [f"{k} ({len(v)})" for k,v in indices[0].items()]
         print(f"Groups: {', '.join(sizes)}")
-        import multiprocessing
         n = self.n_threads
         buffer_ratio = 10
         with multiprocessing.Manager() as manager:
             q1 = manager.Queue(maxsize = n * buffer_ratio)
             q2 = manager.Queue()
-            o = manager.dict()
+            #o = manager.dict()
             read_process = multiprocessing.Process(target=Multi.mp_reader,
                                                    args=(ps_table.get_rows,None,q1,n))
             read_process.start()
-            pool = [multiprocessing.Process(target=Multi.mp_do_rows,args=(q1,self.row_compare,group_indices,q2)) for n in range(n-2)] 
+            pool = [multiprocessing.Process(target=Multi.mp_do_rows,args=(q1,self.row_compare,indices,q2)) for n in range(n-2)] 
             for p in pool:
                 p.start()
             done_count = 0
@@ -287,28 +269,25 @@ class Manifest:
             read_process.join()
             for p in pool:
                 p.join()
-        return list(group_indices.keys()),med_stats,compare_stats
+        return list(indices[0].keys()),med_stats,compare_stats
     
-    def row_compare(self,item,group_indices):
+    def row_compare(self,item,indices):
         interval,row = item
-    
-        nan_check = [np.isnan(x) for x in row]
-        values_by_group = {g_name:[row[i] for i in index if not nan_check[i]] for g_name,index in group_indices.items()}
-        medians = {g:np.median(values) for g,values in values_by_group.items()}
+        group_indices,anti_indices = indices
         c_stats = []
         m_stats = []
-        for group_name,group_values in values_by_group.items():
-            control_name = self.controls[group_name]
-            if control_name:
-                delta = medians[group_name] - medians[control_name]                        
-                if len(group_values)>2 and len(values_by_group[control_name])>2:
-                    D,pval = ranksums(group_values, values_by_group[control_name])
-                else:
-                    pval = None
+        nan_check = [np.isnan(x) for x in row]
+        for group,indices in group_indices.items():
+            values = [row[i] for i in indices if not nan_check[i]]
+            anti_values = [row[i] for i in anti_indices[group] if not nan_check[i]]
+            median = np.median(values)
+            delta = median-np.median(anti_values)
+            if len(values)>2 and len(anti_values)>2:
+                D,pval = ranksums(values,anti_values)
             else:
-                delta,pval = None,None
-            c_stats.append([delta,pval])
-            m_stats.append([medians[group_name],np.mean(group_values)])
+                pval = None
+            c_stats.append([median-np.median(anti_values),pval])
+            m_stats.append([median,np.mean(values)])
         return interval,m_stats,c_stats
     
     def significant_intervals(self,compare_stats):
