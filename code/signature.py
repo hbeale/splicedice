@@ -67,7 +67,7 @@ def main():
     if args.mode == "compare":
         print("Testing for differential splicing...")
         groups,med_stats,compare_stats = manifest.compare_multi(ps_table,
-                                                                threshold=config['signficance_threshold'],
+                                                                threshold=config['significance_threshold'],
                                                                 delta_threshold=config['delta_threshold'])
         print("Writing...")
         manifest.write_sig(args.output_prefix,groups,med_stats,compare_stats)
@@ -80,7 +80,7 @@ def main():
         else:
             print("Testing for differential splicing...")
             groups,med_stats,compare_stats = manifest.compare_multi(ps_table,
-                                                                threshold=config['signficance_threshold'],
+                                                                threshold=config['significance_threshold'],
                                                                 delta_threshold=config['delta_threshold'])
 
         print("Fitting beta distributions...")
