@@ -128,18 +128,16 @@ class Manifest:
 
     def get_group_indices(self,samples,anti=False):
         group_indices = {}
-        grouped_samples = []
         for i,s in enumerate(samples):
             if s in self.get_group:
                 try:
                     group_indices[self.get_group[s]].append(i)
                 except KeyError:
                     group_indices[self.get_group[s]] = [i]
-                grouped_samples.append(s)
         if anti:
             anti_indices = {}
             for name,group in group_indices.items():
-                anti_indices[name]  = [s for s in grouped_samples if s not in group]
+                anti_indices[name]  = [i for i,s in enumerate(samples) if s not in group]
             return group_indices, anti_indices
         else:
             return group_indices
