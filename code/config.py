@@ -32,4 +32,4 @@ def get_config(filename=None,extra_args=""):
             except ValueError:
                 pass
             config[attribute] = value
-        return config
+    return config
