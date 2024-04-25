@@ -1,6 +1,38 @@
 from scipy.stats import beta as stats_beta
 import numpy as np
 
+class Manifest:
+    def __init__(self,filename):
+        self.samples = []
+        self.get_group = {}
+        self.groups = []
+        with open(filename) as tsv:
+            for line in tsv:
+                row = line.rstrip().split("\t")
+                sample_name,group_name = row[0:2]
+                self.samples.append(sample_name)
+                self.get_group[sample_name] = group_name
+                if group_name not in self.groups:
+                    self.groups[group_name] = []
+                self.groups[group_name].append(sample_name)
+
+    def get_group_indices(self,samples,anti=False):
+        group_indices = {}
+        for i,s in enumerate(samples):
+            if s in self.get_group:
+                try:
+                    group_indices[self.get_group[s]].append(i)
+                except KeyError:
+                    group_indices[self.get_group[s]] = [i]
+        if anti:
+            anti_indices = {}
+            for name,group in group_indices.items():
+                anti_indices[name]  = [i for i,s in enumerate(samples) if s not in group]
+            return group_indices, anti_indices
+        else:
+            return group_indices
+        
+        
 #### Beta Class ####        
 class Beta:
     def __init__(self,exclude_zero_ones=False):
@@ -87,9 +119,9 @@ class Table:
                         yield (row[0],[float(x) for x in row[1:]])
                 else:
                     for line in data_file:
-                        row = line.rstrip().split("\t")
-                        if row[0] in interval_set:
-                            yield (row[0],[float(x) for x in row[1:]])
+                        interval,row = line.rstrip().split("\t",1)
+                        if interval in interval_set:
+                            yield (interval,[float(x) for x in row.split('\t')])
                         
 #### Annotation class ####
 class Annotation:
