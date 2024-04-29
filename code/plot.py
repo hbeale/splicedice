@@ -140,8 +140,8 @@ class PS_distribution:
         self.fw, self.fh = 6, 3
         self.pw, self.ph = 4,2
         self.fig = plt.figure(figsize=(self.fw,self.fh))
-        self.panel = self.fig.add_axes([0.5/self.fw,0.5/self.fh,self.pw/self.fw,self.ph])
-        self.legend = self.fig.add_axes([4.6/self.fw,0.5/self.fh,1/self.fw,self.ph])
+        self.panel = self.fig.add_axes([0.5/self.fw,0.5/self.fh,self.pw/self.fw,self.ph/self.fh])
+        self.legend = self.fig.add_axes([4.6/self.fw,0.5/self.fh,1/self.fw,self.ph/self.fh])
         self.labels = []
         for group,indices in self.group_indices.items():
             values = [row[i] for i in indices]
