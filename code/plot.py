@@ -141,7 +141,7 @@ class PS_distribution:
         self.pw, self.ph = 4,2
         self.fig = plt.figure(figsize=(self.fw,self.fh))
         self.panel = self.fig.add_axes([0.5/self.fw,0.5/self.fh,self.pw,self.ph])
-
+        self.legend = self.fig.add_axes([4.6/self.fw,0.5/self.fh,1/self.fw,self.ph])
         for group,indices in self.group_indices:
             values = [row[i] for i in indices]
             self.add_hist(values,label=group,color=colors.next())
@@ -162,7 +162,7 @@ class PS_distribution:
     def add_beta(self,a,b,label,color):
         xs,ys = self.beta_points(a,b)
         self.panel.plot(xs,ys,color=color)
-        self.labels.append([label,color])
+        self.labels.append(["b",label,color])
 
         
     def beta_points(self,a,b,xdist=0.005):
@@ -172,10 +172,23 @@ class PS_distribution:
             ys.append(stats.beta.pdf(x,(a,b)))
         return xs,ys
         
+    def fill_legend(self):
+        top = len(self.labels)
+        y = top
+        for which,label,color in self.labels:
+            y -= 1
+            if which == "h":
+                r = patches.Rectangle((0,y),.8,.8,
+                                  edgecolor="darkgray",facecolor=color)
+                self.legend.add_patch(r)
+            elif which == "b":
+                self.legend.plot([0,1],[y+.5,y+.5],color=color)
+            
+        
+
+
     def save_fig(self,out_prefix,dpi=600):
-        l,b = .75,0.1
-        w,h = .2,.8
-        legend = self.fig.add_axes((l,b,w,h))
+        self.fill_legend()
         self.fig.save_fig(f"{out_prefix}.{time.time()}.png",dpi=dpi)
 
 class PCA_plot:
@@ -186,12 +199,16 @@ class PCA_plot:
 def get_args():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i","--input",
-                        help="")
+    parser.add_argument("-i","--intervals",
+                        help="List of intervals to plot (comma-separated).")
     parser.add_argument("-q","--query",default=None,
                         help="Table of p-values from signature query (pvals.tsv).")
     parser.add_argument("-m","--manifest",default=None,
                         help="Manifest of samples with groups for combining or labeling.")
+    parser.add_argument("-p","--ps_table",default=None,
+                        help="ps.tsv file with PS values for plotting.")
+    parser.add_argument("-b","--beta",default=None,
+                        help="beta.tsv file with parameters for fit beta distributions.")
     parser.add_argument("-o","--out_prefix",default="splicedice",
                         help="Output path and filename before extensions [Default: 'splicedice']")
     return parser.parse_args()
