@@ -120,7 +120,7 @@ def read_betas(filename,interval_set):
             if interval in interval_set:
                 row = [float(x) for x in row.split('\t')]
                 mabs = {}
-                for name,index in indices:
+                for name,index in indices.items():
                     mabs[name] = [row[i] for i in index]
                 betas[interval] = mabs
         return betas
@@ -189,7 +189,6 @@ class PS_distribution:
 
     def save_fig(self,out_prefix,dpi=600):
         self.fill_legend()
-        print("save")
         self.fig.save_fig(f"{out_prefix}.{time.time()}.png",dpi=dpi)
 
 class PCA_plot:
