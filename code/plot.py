@@ -153,6 +153,7 @@ class PS_distribution:
 
     def add_hist(self,values,label,color):
         bins,counts = np.histogram(values,bins=self.bins)
+        print(bins)
         for i,floor in enumerate(self.stack):
             r = patches.Rectangle((bins[i],floor),self.width,counts[i],
                                   edgecolor="darkgray",facecolor=color)
