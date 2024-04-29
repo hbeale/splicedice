@@ -151,7 +151,7 @@ class PS_distribution:
             self.add_beta(a,b,label=name,color=colors.next())
 
     def add_hist(self,values,label,color):
-        bins,counts = np.hist(values,bins=self.bins)
+        bins,counts = np.histogram(values,bins=self.bins)
         for i,floor in enumerate(self.stack):
             r = patches.Rectangle((bins[i],floor),self.width,counts[i],
                                   edgecolor="darkgray",facecolor=color)
