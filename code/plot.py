@@ -227,7 +227,7 @@ def main():
         intervals = set(args.intervals.split(","))
         betas = read_betas(args.beta,intervals)
         ps_table = Table(args.ps_table)
-        group_indices = manifest.get_group_indices(ps_table.get_samples)
+        group_indices = manifest.get_group_indices(ps_table.get_samples())
         for interval,row in ps_table.get_rows(interval_set=intervals):
             ps_plot = PS_distribution(interval,row,group_indices,betas[interval])
             ps_plot.save_fig(args.out_prefix)
