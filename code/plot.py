@@ -3,7 +3,7 @@ import matplotlib.patches as patches
 from scipy import stats
 import numpy as np
 import time
-from tools import Table
+from tools import Table, Manifest
 
 def get_color(x):
     if x < 0.5:
@@ -92,13 +92,78 @@ class PvalMatrix:
         panel.set_ylim(0.5,len(self.ylabels)+.5)
         plt.savefig(f"{filename}_match.png")
 
+class ColorLoop:
+    def __init__(self,colors=["darkblue","darkorange","green","gray","purple","black"]):
+        self.colors = colors
+        self.i = -1
+
+    def next(self):
+        self.i = (self.i + 1) % len(self.colors)
+        return self.colors[self.i]
+
+
+def read_betas(filename,interval_set):
+    with open(filename) as tsv:
+        header = tsv.readline().rstrip().split('\t')[1:]
+        indices = {}
+        for i,column in enumerate(header):
+            stat,name = column.split("_",1)
+            if stat == "median":
+                indices[name] = [i]
+            elif stat == "alpha":
+                indices[name].append(i)
+            elif stat == "beta":
+                indices[name].append(i)
+        betas = {}
+        for line in tsv:
+            interval,row = line.split("\t",1)
+            if interval in interval_set:
+                row = [float(x) for x in row.split('\t')]
+                mabs = {}
+                for name,index in indices:
+                    mabs[name] = [row[i] for i in index]
+                betas[interval] = mabs
+        return betas
+
 
 class PS_distribution:
-    def __init__(self,ps_table,intervals,group_indices=None):
-        self.values = []
-        self.group_indices = group_indices
-        for interval,row in ps_table.get_rows(intervals):
-            self.values[interval] = row
+    def __init__(self,interval,row,group_indices=None,betas={},width=0.05):
+        self.width = width
+        self.bins = np.arange(0,1+width,width)
+        self.stack = [0 for bin in self.bins[:-1]]
+        colors = ColorLoop()
+        if group_indices:
+            self.group_indices = group_indices
+        else:
+            self.group_indices = {"Values":[i for i in range(len(row))]}
+
+        self.fw, self.fh = 6, 3
+        self.pw, self.ph = 4,2
+        self.fig = plt.figure(figsize=(self.fw,self.fh))
+        self.panel = self.fig.add_axes([0.5/self.fw,0.5/self.fh,self.pw,self.ph])
+
+        for group,indices in self.group_indices:
+            values = [row[i] for i in indices]
+            self.add_hist(values,label=group,color=colors.next())
+
+        for name,mab in betas.items():
+            m,a,b = mab
+            self.add_beta(a,b,label=name,color=colors.next())
+
+    def add_hist(self,values,label,color):
+        bins,counts = np.hist(values,bins=self.bins)
+        for i,floor in enumerate(self.stack):
+            r = patches.Rectangle((bins[i],floor),self.width,counts[i],
+                                  edgecolor="darkgray",facecolor=color)
+            self.stack[i] += counts[i]
+            self.panel.add_patch(r)
+        self.labels.append(["h",label,color])
+
+    def add_beta(self,a,b,label,color):
+        xs,ys = self.beta_points(a,b)
+        self.panel.plot(xs,ys,color=color)
+        self.labels.append([label,color])
+
         
     def beta_points(self,a,b,xdist=0.005):
         xs,ys = [],[]
@@ -108,6 +173,9 @@ class PS_distribution:
         return xs,ys
         
     def save_fig(self,out_prefix,dpi=600):
+        l,b = .75,0.1
+        w,h = .2,.8
+        legend = self.fig.add_axes((l,b,w,h))
         self.fig.save_fig(f"{out_prefix}.{time.time()}.png",dpi=dpi)
 
 class PCA_plot:
@@ -136,6 +204,18 @@ def main():
     if args.query and args.manifest:
         pmat = PvalMatrix(args.manifest,args.query)
         pmat.plot_table(args.out_prefix)
+
+    if args.ps_table and args.intervals and args.beta and args.manifest:
+        manifest = Manifest(args.manifest)
+        intervals = set(args.intervals.split(","))
+        betas = read_betas(args.beta,intervals)
+        ps_table = Table(args.ps_table)
+        group_indices = manifest.get_group_indices(ps_table.get_samples)
+        for interval,row in ps_table.get_rows(interval_set=intervals):
+            ps_plot = PS_distribution(interval,row,group_indices,betas[interval])
+            ps_plot.save_fig(args.out_prefix)
+
+
 
 
 if __name__=="__main__":
