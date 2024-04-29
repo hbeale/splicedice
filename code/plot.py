@@ -149,7 +149,7 @@ class PS_distribution:
 
         for name,mab in betas.items():
             m,a,b = mab
-            self.add_beta(a,b,label=name,color=colors.next())
+            #self.add_beta(a,b,label=name,color=colors.next())
 
     def add_hist(self,values,label,color):
         bins,counts = np.histogram(values,bins=self.bins)
