@@ -190,7 +190,7 @@ class PS_distribution:
 
     def save_fig(self,out_prefix,dpi=600):
         self.fill_legend()
-        self.fig.save_fig(f"{out_prefix}.{time.time()}.png",dpi=dpi)
+        self.fig.savefig(f"{out_prefix}.{time.time()}.png",dpi=dpi)
 
 class PCA_plot:
     def __init__(self,xs,ys,xy_pairs=[]):
