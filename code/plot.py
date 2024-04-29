@@ -189,6 +189,7 @@ class PS_distribution:
 
     def save_fig(self,out_prefix,dpi=600):
         self.fill_legend()
+        print("save")
         self.fig.save_fig(f"{out_prefix}.{time.time()}.png",dpi=dpi)
 
 class PCA_plot:
@@ -199,7 +200,7 @@ class PCA_plot:
 def get_args():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i","--intervals",
+    parser.add_argument("-i","--intervals",default=None,
                         help="List of intervals to plot (comma-separated).")
     parser.add_argument("-q","--query",default=None,
                         help="Table of p-values from signature query (pvals.tsv).")
