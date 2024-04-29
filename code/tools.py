@@ -5,7 +5,7 @@ class Manifest:
     def __init__(self,filename):
         self.samples = []
         self.get_group = {}
-        self.groups = []
+        self.groups = {}
         with open(filename) as tsv:
             for line in tsv:
                 row = line.rstrip().split("\t")
