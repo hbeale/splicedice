@@ -170,7 +170,7 @@ class PS_distribution:
         xs,ys = [],[]
         for x in np.arange(xdist/2,1,xdist):
             xs.append(x)
-            ys.append(stats.beta.pdf(x,(a,b)))
+            ys.append(stats.beta.pdf(x,a,b))
         return xs,ys
         
     def fill_legend(self):
