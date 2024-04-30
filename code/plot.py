@@ -146,10 +146,9 @@ class PS_distribution:
         for group,indices in self.group_indices.items():
             values = [row[i] for i in indices]
             self.add_hist(values,label=group,color=colors.next())
-
         for name,mab in betas.items():
             m,a,b = mab
-            #self.add_beta(a,b,label=name,color=colors.next())
+            self.add_beta(a,b,label=name,color=colors.next())
 
     def add_hist(self,values,label,color):
         counts,bins = np.histogram(values,bins=self.bins)
@@ -158,6 +157,7 @@ class PS_distribution:
                                   edgecolor="darkgray",facecolor=color)
             self.stack[i] += counts[i]
             self.panel.add_patch(r)
+        self.panel.set_ylim(0,max(self.stack)*1.1)
         self.labels.append(["h",label,color])
 
     def add_beta(self,a,b,label,color):
