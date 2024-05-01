@@ -186,7 +186,7 @@ class PS_distribution:
             if y == 5:
                 x += 3
             if which == "h":
-                r = patches.Rectangle((x+.1,y+.1),.8,.8,
+                r = patches.Rectangle((x+.1,y+.1),.6,.8,
                                   edgecolor="darkgray",facecolor=color)
                 self.legend.add_patch(r)
             elif which == "b":
