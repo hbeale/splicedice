@@ -186,12 +186,13 @@ class PS_distribution:
             if y == 5:
                 x += 3
             if which == "h":
-                r = patches.Rectangle((x+.1,y+.1),.6,.8,
+                r = patches.Rectangle((x+.1,y+.1),.5,.8,
                                   edgecolor="darkgray",facecolor=color)
                 self.legend.add_patch(r)
+                self.legend.text(x+.7,y+.5,f"{label} PS values",ha='left',va='center')
             elif which == "b":
                 self.legend.plot([x+.1,x+.9],[y+.5,y+.5],color=color)
-            self.legend.text(x+1,y+.5,label,ha='left',va='center')
+                self.legend.text(x+.7,y+.5,f"{label} beta dist.",ha='left',va='center')
             
 
         self.legend.set_xticks([])
