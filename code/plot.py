@@ -160,7 +160,7 @@ class PS_distribution:
             if counts[i] == 0:
                 continue
             r = patches.Rectangle((bins[i],floor),self.width,counts[i],
-                                  edgecolor=(.25,.25,.25),linewidth=0.5,
+                                  edgecolor=("black"),linewidth=0.5,
                                   facecolor=color)
             self.stack[i] += counts[i]
             self.panel.add_patch(r)
