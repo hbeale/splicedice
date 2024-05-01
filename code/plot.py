@@ -151,7 +151,7 @@ class PS_distribution:
 
         lw = 1 + (len(self.labels)//6)
         lh = min(6,1+(len(self.labels)%6)) / 2
-        self.legend = self.fig.add_axes([4.6/fw,(3.5-lh)/fh,lw/fw,lh/fh])
+        self.legend = self.fig.add_axes([4.6/fw,(2.5-lh)/fh,lw/fw,lh/fh])
 
 
     def add_hist(self,values,label,color,density=True):
@@ -204,7 +204,7 @@ class PS_distribution:
 
     def save_fig(self,out_prefix,dpi=600):
         self.fill_legend()
-        self.fig.savefig(f"{out_prefix}.{time.time()}.png",dpi=dpi)
+        self.fig.savefig(f"{out_prefix}.{time.time()}.png",dpi=dpi,bbox_inches="tight")
 
 class PCA_plot:
     def __init__(self,xs,ys,xy_pairs=[]):
