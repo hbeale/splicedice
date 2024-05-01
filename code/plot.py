@@ -150,7 +150,7 @@ class PS_distribution:
             self.add_beta(a,b,label=name,color=colors.next())
 
         lw = 1 + (len(self.labels)//6)
-        lh = min(6,1+(len(self.labels)%6)) / 3
+        lh = min(6,1+len(self.labels)) / 3
         self.legend = self.fig.add_axes([4.6/fw,(2.5-lh)/fh,lw/fw,lh/fh])
 
 
