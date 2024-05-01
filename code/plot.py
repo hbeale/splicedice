@@ -187,7 +187,7 @@ class PS_distribution:
                 x += 3
             if which == "h":
                 r = patches.Rectangle((x+.1,y+.2),.3,.6,
-                                  edgecolor=(.05,.05,.05),linewidth=.25,
+                                  edgecolor=(.1,.1,.1),linewidth=.5,
                                   facecolor=color)
                 self.legend.add_patch(r)
                 self.legend.text(x+.5,y+.5,f"{label} PS values",ha='left',va='center')
