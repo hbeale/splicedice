@@ -195,7 +195,7 @@ class PS_distribution:
         self.legend.set_xticks([])
         self.legend.set_yticks([])  
         self.legend.set_xlim(0,x+1)
-        if len(self.labels > 5):
+        if len(self.labels) > 5:
             self.legend.set_ylim(0,6)
         else:
             self.legend.set_ylim(y,6)         
