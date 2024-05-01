@@ -298,7 +298,7 @@ class Manifest:
         for data in compare_stats.values():
             m = len(data)
             break
-        for i in range(m):
+        for i in range(m): # error when no sig intervals
             pvals = []
             for interval,data in compare_stats.items():
                 if data[i][1] < self.threshold:

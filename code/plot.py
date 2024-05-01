@@ -137,11 +137,10 @@ class PS_distribution:
         else:
             self.group_indices = {"Values":[i for i in range(len(row))]}
 
-        self.fw, self.fh = 6, 3
-        self.pw, self.ph = 4,2
-        self.fig = plt.figure(figsize=(self.fw,self.fh))
-        self.panel = self.fig.add_axes([0.5/self.fw,0.5/self.fh,self.pw/self.fw,self.ph/self.fh])
-        self.legend = self.fig.add_axes([4.6/self.fw,0.5/self.fh,1/self.fw,self.ph/self.fh])
+        fw,fh = 6,3
+        pw,ph = 4,2
+        self.fig = plt.figure(figsize=(fw,fh))
+        self.panel = self.fig.add_axes([0.5/fw,0.5/fh,pw/fw,ph/fh])
         self.labels = []
         for group,indices in self.group_indices.items():
             values = [row[i] for i in indices]
@@ -149,6 +148,11 @@ class PS_distribution:
         for name,mab in betas.items():
             m,a,b = mab
             self.add_beta(a,b,label=name,color=colors.next())
+
+        lw = 1 + (len(self.labels)//6)
+        lh = min(6,1+(len(self.labels)%6)) / 2
+        self.legend = self.fig.add_axes([4.6/fw,(3.5-lh)/fh,lw/fw,lh/fh])
+
 
     def add_hist(self,values,label,color,density=True):
         counts,bins = np.histogram(values,bins=self.bins,density=density)
@@ -174,17 +178,27 @@ class PS_distribution:
         return xs,ys
         
     def fill_legend(self):
-        top = len(self.labels)
-        y = top
+        ys = [0,1,2,3,4,5]
+        x = 0
         for which,label,color in self.labels:
-            y -= 1
+            y = ys.pop()
+            ys = [y] + ys
             if which == "h":
-                r = patches.Rectangle((0,y),.8,.8,
+                r = patches.Rectangle((x+.1,y+.1),.8,.8,
                                   edgecolor="darkgray",facecolor=color)
                 self.legend.add_patch(r)
             elif which == "b":
                 self.legend.plot([0,1],[y+.5,y+.5],color=color)
+            self.legend.text(x+.5,y+.5,label)
             
+
+        self.legend.set_xticks([])
+        self.legend.set_yticks([])  
+        self.legend.set_xlim(0,x+1)
+        if len(self.labels > 5):
+            self.legend.set_ylim(0,6)
+        else:
+            self.legend.set_ylim(y,6)         
         
 
 
