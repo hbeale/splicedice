@@ -158,7 +158,8 @@ class PS_distribution:
         counts,bins = np.histogram(values,bins=self.bins,density=density)
         for i,floor in enumerate(self.stack):
             r = patches.Rectangle((bins[i],floor),self.width,counts[i],
-                                  edgecolor="darkgray",facecolor=color)
+                                  edgecolor=(.2,.2,.2),linewidth=0.5,
+                                  facecolor=color)
             self.stack[i] += counts[i]
             self.panel.add_patch(r)
         self.panel.set_ylim(0,max(self.stack)*1.1)
@@ -187,7 +188,7 @@ class PS_distribution:
                 x += 3
             if which == "h":
                 r = patches.Rectangle((x+.1,y+.2),.3,.6,
-                                  edgecolor=(.1,.1,.1),linewidth=.5,
+                                  edgecolor=(.2,.2,.2),linewidth=.5,
                                   facecolor=color)
                 self.legend.add_patch(r)
                 self.legend.text(x+.5,y+.5,f"{label} PS values",ha='left',va='center')
