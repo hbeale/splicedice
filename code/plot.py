@@ -150,7 +150,7 @@ class PS_distribution:
             self.add_beta(a,b,label=name,color=colors.next())
 
         lw = 1 + (len(self.labels)//6)
-        lh = min(6,1+(len(self.labels)%6)) / 2
+        lh = min(6,1+(len(self.labels)%6)) / 3
         self.legend = self.fig.add_axes([4.6/fw,(2.5-lh)/fh,lw/fw,lh/fh])
 
 
@@ -179,17 +179,19 @@ class PS_distribution:
         
     def fill_legend(self):
         ys = [0,1,2,3,4,5]
-        x = 0
+        x = -3
         for which,label,color in self.labels:
             y = ys.pop()
             ys = [y] + ys
+            if y == 5:
+                x += 3
             if which == "h":
                 r = patches.Rectangle((x+.1,y+.1),.8,.8,
                                   edgecolor="darkgray",facecolor=color)
                 self.legend.add_patch(r)
             elif which == "b":
-                self.legend.plot([0,1],[y+.5,y+.5],color=color)
-            self.legend.text(x+.5,y+.5,label)
+                self.legend.plot([x+.1,x+.9],[y+.5,y+.5],color=color)
+            self.legend.text(x+1,y+.5,label,ha='left',va='center')
             
 
         self.legend.set_xticks([])
