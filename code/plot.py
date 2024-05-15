@@ -159,13 +159,18 @@ class ColorBox:
             return default
 
     def get_light(self,label,default="lightgray"):
-        color = self.labels[label]
-        return [x+(1-x)/2 for x in mcolors.to_rgb(color)]
-
+        if label in self.labels:
+            color = self.labels[label]
+            return [x+(1-x)/2 for x in mcolors.to_rgb(color)]
+        else:
+            return default
+        
     def get_dark(self,label,default="black"):
-        color = self.labels[label]
-        return [x*0.75 for x in mcolors.to_rgb(color)]
-    
+        if label in self.labels:
+            color = self.labels[label]
+            return [x*0.75 for x in mcolors.to_rgb(color)]
+        else:
+            return default
 class PS_distribution:
     def __init__(self,interval,row,group_indices=None,betas={},width=0.05):
         self.interval = interval
