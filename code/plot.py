@@ -222,8 +222,8 @@ class PS_distribution:
                                       facecolor=self.colors.get_color(label),
                                       alpha=1,zorder=3)
                 self.panel.add_patch(top_edge)
-                left = left+0.005
-                right = right-0.005        
+                #left = left+0.005
+                #right = right-0.005        
         self.panel.set_ylim(0,self.ymax*1.1)
         self.panel.set_xlim(0,1)
 
