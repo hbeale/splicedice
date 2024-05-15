@@ -213,12 +213,12 @@ class PS_distribution:
             left,right = self.bins[i],self.bins[i+1]
             for count,label in sorted(stack,reverse=True):
                 r = patches.Rectangle((left,0),right-left,count,
-                                      linewidth=0.15,edgecolor="black",
+                                      linewidth=0.08,edgecolor="black",
                                       facecolor=self.colors.get_light(label),
                                       alpha=1,zorder=1)
                 self.panel.add_patch(r)
                 top_edge = patches.Rectangle((left,count),right-left,thick,
-                                      linewidth=0.15,edgecolor="gray",
+                                      linewidth=0.08,edgecolor="black",
                                       facecolor=self.colors.get_color(label),
                                       alpha=1,zorder=3)
                 self.panel.add_patch(top_edge)
