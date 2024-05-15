@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+import matplotlib.colors as mcolors
 from scipy import stats
 import numpy as np
 import time
@@ -126,53 +127,109 @@ def read_betas(filename,interval_set):
         return betas
 
 
+class ColorBox:
+
+    mld = ['green','purple','orange']
+
+    def __init__(self,colors=None):
+        if colors:
+            self.colors = colors
+        else:
+            self.colors = ColorBox.mld
+        self.i = 0
+        self.labels = {}
+        
+    def add_label(self,label,color=None):
+        if color:
+            self.labels[label] = color
+        else:
+            self.labels[label] = self.colors[self.i]
+            self.i = (self.i + 1) % len(self.colors)
+
+    def get_color(self,label,default="darkgray"):
+        if label in self.labels:
+            return self.labels[label]
+        else:
+            return default
+
+    def get_light(self,label,default="lightgray"):
+        color = self.labels[label]
+        return [x+(1-x)/2 for x in mcolors.to_rgb(color)]
+        
+
+    def get_dark(self,label,default="black"):
+        color = self.labels[label]
+        return [x*0.75 for x in mcolors.to_rgb(color)]
+    
+
+
+        
 class PS_distribution:
     def __init__(self,interval,row,group_indices=None,betas={},width=0.05):
+        self.ymax = 0
         self.width = width
         self.bins = np.arange(0,1+width,width)
-        self.stack = [0 for bin in self.bins[:-1]]
-        colors = ColorLoop()
+        self.bars = [[] for bin in self.bins[:-1]]
+        self.colors = ColorBox()
         if group_indices:
             self.group_indices = group_indices
+            for group in group_indices:
+                self.colors.add_label(group)
         else:
             self.group_indices = {"Values":[i for i in range(len(row))]}
+            self.colors.add_label(values)
 
         fw,fh = 6,3
         pw,ph = 4,2
+        self.pw = pw
+        self.ph = ph
         self.fig = plt.figure(figsize=(fw,fh))
         self.panel = self.fig.add_axes([0.5/fw,0.5/fh,pw/fw,ph/fh])
-        self.labels = []
+        self.hist_labels = []
+        self.beta_labels = []
         for group,indices in self.group_indices.items():
             values = [row[i] for i in indices]
-            self.add_hist(values,label=group,color=colors.next())
+            self.add_hist(values,label=group)
+        self.plot_hists()
         for name,mab in betas.items():
             m,a,b = mab
-            self.add_beta(a,b,label=name,color=colors.next())
-
-        lw = 1 + (len(self.labels)//6)
-        lh = min(6,1+len(self.labels)) / 3
+            self.add_beta(a,b,label=name)
+        leglen = len(self.hist_labels) + len(self.beta_labels)
+        lw = 1 + (leglen//6)
+        lh = min(6,1+leglen) / 3
         self.legend = self.fig.add_axes([4.6/fw,(2.5-lh)/fh,lw/fw,lh/fh])
 
 
-    def add_hist(self,values,label,color,density=True):
+    def add_hist(self,values,label,density=True):
         counts,bins = np.histogram(values,bins=self.bins,density=density)
-        for i,floor in enumerate(self.stack):
-            if counts[i] == 0:
-                continue
-            r = patches.Rectangle((bins[i],floor),self.width,counts[i],
-                                  edgecolor=("black"),linewidth=0.5,
-                                  facecolor=color)
-            self.stack[i] += counts[i]
-            self.panel.add_patch(r)
-        self.panel.set_ylim(0,max(self.stack)*1.1)
-        self.labels.append(["h",label,color])
+        for i,count in enumerate(counts):
+            self.bars[i].append((count,label))
+        self.hist_labels.append(label)
+        self.ymax = max(self.ymax,max(counts))
 
-    def add_beta(self,a,b,label,color):
+    def plot_hists(self):
+        thick = (self.pw/self.ph) * (0.005*(1.1*self.ymax))
+        for i,stack in enumerate(self.bars):
+            left,right = self.bins[i],self.bins[i+1]
+            for count,label in sorted(stack,reverse=True):
+                r = patches.Rectangle((left,0),right-left,count,
+                                      linewidth=0,facecolor=self.colors.get_light(label),
+                                      alpha=1,zorder=1)
+                self.panel.add_patch(r)
+                top_edge = patches.Rectangle((left,count),right-left,thick,
+                                      linewidth=0,facecolor=self.colors.get_color(label),
+                                      alpha=1,zorder=3)
+                self.panel.add_patch(top_edge)
+                left = left+0.005
+                right = right-0.005        
+        self.panel.set_ylim(0,self.ymax*1.1)
+        self.panel.set_xlim(0,1)
+
+    def add_beta(self,a,b,label):
         xs,ys = self.beta_points(a,b)
-        self.panel.plot(xs,ys,color=color)
-        self.labels.append(["b",label,color])
+        self.panel.plot(xs,ys,color=self.colors.get_dark(label))
+        self.beta_labels.append(label)
 
-        
     def beta_points(self,a,b,xdist=0.005):
         xs,ys = [],[]
         for x in np.arange(xdist/2,1,xdist):
@@ -181,31 +238,32 @@ class PS_distribution:
         return xs,ys
         
     def fill_legend(self):
-        ys = [0,1,2,3,4,5]
+        y = -1
         x = -3
-        for which,label,color in self.labels:
-            y = ys.pop()
-            ys = [y] + ys
-            if y == 5:
+        for label in self.hist_labels:
+            y = (y+1) % 6
+            if y == 0:
                 x += 3
-            if which == "h":
-                r = patches.Rectangle((x+.1,y+.2),.3,.6,
-                                  edgecolor=(.25,.25,.25),linewidth=.5,
-                                  facecolor=color)
-                self.legend.add_patch(r)
-                self.legend.text(x+.5,y+.5,f"{label} PS values",ha='left',va='center')
-            elif which == "b":
-                self.legend.plot([x+.1,x+.4],[y+.5,y+.5],color=color)
-                self.legend.text(x+.5,y+.5,f"{label} beta dist.",ha='left',va='center')
-            
-
+            r = patches.Rectangle((x+.1,y+.2),.3,.6,edgecolor=self.colors.get_color(label),linewidth=.5,facecolor=self.colors.get_light(label))
+            self.legend.add_patch(r)
+            self.legend.text(x+.5,y+.5,f"{label} PS values",ha='left',va='center')
+        for label in self.beta_labels:
+            y = (y+1) % 6
+            if y == 0:
+                x += 3
+            self.legend.plot([x+.1,x+.4],[y+.5,y+.5],color=self.colors.get_color(label))
+            self.legend.text(x+.5,y+.5,f"{label} beta dist.",ha='left',va='center')
         self.legend.set_xticks([])
         self.legend.set_yticks([])  
         self.legend.set_xlim(0,x+3)
-        if len(self.labels) > 5:
-            self.legend.set_ylim(0,6)
+        if len(self.hist_labels) + len(self.beta_labels) > 5:
+            self.legend.set_ylim(6,0)
         else:
-            self.legend.set_ylim(y,6)         
+            self.legend.set_ylim(y+1,0)         
+        
+    def save_fig(self,out_prefix,dpi=600):
+        self.fill_legend()
+        self.fig.savefig(f"{out_prefix}.{time.time()}.png",dpi=dpi,bbox_inches="tight")       
         
 
 
