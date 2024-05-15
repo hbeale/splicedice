@@ -196,8 +196,7 @@ class PS_distribution:
             self.add_beta(a,b,label=name)
         leglen = len(self.hist_labels) + len(self.beta_labels)
         lw = 1 + (leglen//6)
-        lh = min(6,1+leglen) / 3
-        self.legend = self.fig.add_axes([4.6/fw,(2.5-lh)/fh,lw/fw,lh/fh])
+        self.legend = self.fig.add_axes([4.6/fw,0.5/fh,lw/fw,ph/fh])
 
 
     def add_hist(self,values,label,density=True):
@@ -213,7 +212,8 @@ class PS_distribution:
             left,right = self.bins[i],self.bins[i+1]
             alpha = 1
             for count,label in sorted(stack,reverse=True):
-                r = patches.Rectangle((self.bins[i],0),self.width,count,
+                #r = patches.Rectangle((self.bins[i],0),self.width,count,
+                r = patches.Rectangle((left,0),right-left,count,
                                       linewidth=0.08,edgecolor="black",
                                       facecolor=self.colors.get_light(label),
                                       alpha=alpha,zorder=1)
@@ -248,7 +248,8 @@ class PS_distribution:
             y = (y+1) % 6
             if y == 0:
                 x += 3
-            r = patches.Rectangle((x+.1,y+.2),.3,.6,edgecolor=self.colors.get_color(label),linewidth=.5,facecolor=self.colors.get_light(label))
+            r = patches.Rectangle((x+.1,y+.2),.3,.6,edgecolor="black",
+                                  linewidth=.1,facecolor=self.colors.get_light(label))
             self.legend.add_patch(r)
             self.legend.text(x+.5,y+.5,f"{label} PS values",ha='left',va='center')
         for label in self.beta_labels:
@@ -269,12 +270,6 @@ class PS_distribution:
         self.fill_legend()
         self.fig.savefig(f"{out_prefix}.{time.time()}.png",dpi=dpi,bbox_inches="tight")       
         
-
-
-    def save_fig(self,out_prefix,dpi=600):
-        self.fill_legend()
-        self.fig.savefig(f"{out_prefix}.{time.time()}.png",dpi=dpi,bbox_inches="tight")
-
 class PCA_plot:
     def __init__(self,xs,ys,xy_pairs=[]):
         self.fig = plt.figure(figsize=(6,4))
