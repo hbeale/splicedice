@@ -48,7 +48,10 @@ class PvalMatrix:
             group_indices = {v:[] for v in groups.values()}
             for i,name in enumerate(header):
                 if name in groups:
-                    group_indices[groups[name]].append(i)
+                    if groups[name] not in group_indices:
+                        group_indices[groups[name]] = [i]
+                    else:
+                        group_indices[groups[name]].append(i)
             group_counts = []
             group_props = []
             ylabels = []
