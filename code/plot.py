@@ -45,6 +45,7 @@ class PvalMatrix:
     def read_pvals(self,pvals,groups,threshold=0.05):
         with open(pvals) as tsv:
             header = tsv.readline().split('\t')
+            group_indices = {}
             for i,name in enumerate(header):
                 if name in groups:
                     if groups[name] not in group_indices:
