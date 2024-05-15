@@ -211,12 +211,14 @@ class PS_distribution:
         thick = (self.pw/self.ph) * (0.005*(1.1*self.ymax))
         for i,stack in enumerate(self.bars):
             left,right = self.bins[i],self.bins[i+1]
+            alpha = 1
             for count,label in sorted(stack,reverse=True):
                 r = patches.Rectangle((self.bins[i],0),self.width,count,
                                       linewidth=0.08,edgecolor="black",
                                       facecolor=self.colors.get_light(label),
-                                      alpha=1,zorder=1)
+                                      alpha=alpha,zorder=1)
                 self.panel.add_patch(r)
+                alpha = 0.75
                 top_edge = patches.Rectangle((left,count),right-left,thick,
                                       linewidth=0.08,edgecolor="black",
                                       facecolor=self.colors.get_color(label),
