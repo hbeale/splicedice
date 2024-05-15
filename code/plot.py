@@ -159,7 +159,7 @@ class ColorBox:
 
     def get_dark(self,label,default="black"):
         color = self.labels[label]
-        return [x*0.75 for x in mcolors.to_rgb(color)]
+        return [x*0.85 for x in mcolors.to_rgb(color)]
     
 
 
