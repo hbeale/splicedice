@@ -129,7 +129,13 @@ def read_betas(filename,interval_set):
 
 class ColorBox:
 
-    mld = ['green','purple','orange']
+    pal = {'doughton_green' : ("#155b51", "#216f63", "#2d8277", "#3a9387", "#45a395"),
+           'doughton_purple' : ("#c468b2","#af509c", "#803777", "#5d2155", "#45113f"),
+           "fritsch" : ("#0f8d7b", "#8942bd", "#eadd17", "#1e1a1a") }
+    
+
+    mld = ["#0f8d7b", "#8942bd", "#eadd17", "#1e1a1a",  # momacolors:Fritsch
+           "orange","blue","red","gray"]
 
     def __init__(self,colors=None):
         if colors:
@@ -155,15 +161,11 @@ class ColorBox:
     def get_light(self,label,default="lightgray"):
         color = self.labels[label]
         return [x+(1-x)/2 for x in mcolors.to_rgb(color)]
-        
 
     def get_dark(self,label,default="black"):
         color = self.labels[label]
         return [x*0.75 for x in mcolors.to_rgb(color)]
     
-
-
-        
 class PS_distribution:
     def __init__(self,interval,row,group_indices=None,betas={},width=0.05):
         self.ymax = 0
@@ -178,7 +180,6 @@ class PS_distribution:
         else:
             self.group_indices = {"Values":[i for i in range(len(row))]}
             self.colors.add_label(values)
-
         fw,fh = 6,3
         pw,ph = 4,2
         self.pw = pw
@@ -194,8 +195,8 @@ class PS_distribution:
         for name,mab in betas.items():
             m,a,b = mab
             self.add_beta(a,b,label=name)
-        leglen = len(self.hist_labels) + len(self.beta_labels)
-        lw = 1 + (leglen//6)
+        legend_size = len(self.hist_labels) + len(self.beta_labels)
+        lw = 1 + (legend_size//6)
         self.legend = self.fig.add_axes([4.6/fw,0.5/fh,lw/fw,ph/fh])
 
 
@@ -212,8 +213,8 @@ class PS_distribution:
             left,right = self.bins[i],self.bins[i+1]
             alpha = 1
             for count,label in sorted(stack,reverse=True):
-                #r = patches.Rectangle((self.bins[i],0),self.width,count,
-                r = patches.Rectangle((left,0),right-left,count,
+                r = patches.Rectangle((self.bins[i],0),self.width,count,
+                #r = patches.Rectangle((left,0),right-left,count,
                                       linewidth=0.08,edgecolor="black",
                                       facecolor=self.colors.get_light(label),
                                       alpha=alpha,zorder=1)
@@ -224,10 +225,12 @@ class PS_distribution:
                                       facecolor=self.colors.get_color(label),
                                       alpha=1,zorder=3)
                 self.panel.add_patch(top_edge)
-                left = left+0.003
-                right = right-0.003        
-        self.panel.set_ylim(0,self.ymax*1.1)
+                left = left+0.005
+                right = right-0.005
+        ymax = self.ymax*1.1        
+        self.panel.set_ylim(0,ymax)
         self.panel.set_xlim(0,1)
+        self.panel.add_patch(patches.Rectangle((0,0),1,ymax,fill=None,lw=1,edgecolor="black",zorder=999))
 
     def add_beta(self,a,b,label):
         xs,ys = self.beta_points(a,b)
@@ -251,12 +254,15 @@ class PS_distribution:
             r = patches.Rectangle((x+.1,y+.2),.3,.6,edgecolor="black",
                                   linewidth=.1,facecolor=self.colors.get_light(label))
             self.legend.add_patch(r)
+            r = patches.Rectangle((x+.1,y+.2),.3,.1,edgecolor=self.colors.get_dark(label),
+                                  linewidth=.1,facecolor=self.colors.get_color(label))
+            self.legend.add_patch(r)
             self.legend.text(x+.5,y+.5,f"{label} PS values",ha='left',va='center')
         for label in self.beta_labels:
             y = (y+1) % 6
             if y == 0:
                 x += 3
-            self.legend.plot([x+.1,x+.4],[y+.5,y+.5],color=self.colors.get_color(label))
+            self.legend.plot([x+.1,x+.4],[y+.5,y+.5],color=self.colors.get_dark(label))
             self.legend.text(x+.5,y+.5,f"{label} beta dist.",ha='left',va='center')
         self.legend.set_xticks([])
         self.legend.set_yticks([])  
@@ -268,7 +274,7 @@ class PS_distribution:
         
     def save_fig(self,out_prefix,dpi=600):
         self.fill_legend()
-        self.fig.savefig(f"{out_prefix}.{time.time()}.png",dpi=dpi,bbox_inches="tight")       
+        self.fig.savefig(f"{out_prefix}.{time.time()}.png",dpi=dpi,bbox_inches="tight") 
         
 class PCA_plot:
     def __init__(self,xs,ys,xy_pairs=[]):
