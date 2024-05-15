@@ -91,7 +91,7 @@ class PvalMatrix:
                 panel.text(j+1,i+1,self.group_counts[i][j],color=text(p),va='center',ha='center')
         panel.set_xlim(0.5,len(self.xlabels)+.5)
         panel.set_ylim(0.5,len(self.ylabels)+.5)
-        plt.savefig(f"{filename}_match.png")
+        plt.savefig(f"{filename}_matchtable.png")
 
 class ColorLoop:
     def __init__(self,colors=["darkblue","darkorange","green","gray","purple","black"]):
@@ -168,6 +168,7 @@ class ColorBox:
     
 class PS_distribution:
     def __init__(self,interval,row,group_indices=None,betas={},width=0.05):
+        self.interval = interval
         self.ymax = 0
         self.width = width
         self.bins = np.arange(0,1+width,width)
@@ -267,19 +268,25 @@ class PS_distribution:
         self.legend.set_xticks([])
         self.legend.set_yticks([])  
         self.legend.set_xlim(0,x+3)
-        if len(self.hist_labels) + len(self.beta_labels) > 5:
-            self.legend.set_ylim(6,0)
-        else:
-            self.legend.set_ylim(y+1,0)         
-        
+        self.legend.set_ylim(6,0)
+           
     def save_fig(self,out_prefix,dpi=600):
         self.fill_legend()
-        self.fig.savefig(f"{out_prefix}.{time.time()}.png",dpi=dpi,bbox_inches="tight") 
+        self.fig.savefig(f"{out_prefix}_{self.interval}.{time.time()}.png",dpi=dpi,bbox_inches="tight") 
         
 class PCA_plot:
     def __init__(self,xs,ys,xy_pairs=[]):
-        self.fig = plt.figure(figsize=(6,4))
-        self.fig.scatter(xs,ys)
+        fw,fh = 6,4
+        pw,ph = 4,2
+        self.pw = pw
+        self.ph = ph
+        self.fig = plt.figure(figsize=(fw,fh))
+        self.panel = self.fig.add_axes([0.5/fw,0.5/fh,pw/fw,ph/fh])
+        self.hist_labels = []
+
+    def save_fig(self,out_prefix,dpi=600):
+        self.fill_legend()
+        self.fig.savefig(f"{out_prefix}_pca.{time.time()}.png",dpi=dpi,bbox_inches="tight") 
 
 def get_args():
     import argparse

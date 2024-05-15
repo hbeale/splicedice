@@ -88,7 +88,9 @@ def main():
         print("Writing files...")
         if med_stats:
             manifest.write_sig(args.output_prefix,groups=groups,med_stats=med_stats,compare_stats=compare_stats)
-        manifest.write_beta(args.output_prefix,groups=manifest.groups,beta_stats=beta_stats)
+
+        groups = manifest.get_group_indices(ps_table.get_samples())
+        manifest.write_beta(args.output_prefix,groups=groups,beta_stats=beta_stats)
 
     elif args.mode == "query":
         print("Reading...")
