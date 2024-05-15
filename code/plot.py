@@ -218,7 +218,7 @@ class PS_distribution:
                                       facecolor=self.colors.get_light(label),
                                       alpha=alpha,zorder=1)
                 self.panel.add_patch(r)
-                alpha = 0.75
+                alpha = 0.5
                 top_edge = patches.Rectangle((left,count),right-left,thick,
                                       linewidth=0.08,edgecolor="black",
                                       facecolor=self.colors.get_color(label),
