@@ -24,7 +24,9 @@ As input for the signature analysis, spliceDICE requires a table of percent-spli
 
 The recommended workflow is to first test for differential splicing, then use that set of significant splice intervals to generate a splicing signature. New samples can be queried against the signature to determine if they are a statistically significant match.
 
+```
 python ~/splicedice/code/signature.py compare -p project.ps.tsv -m manifest.tsv -o project
 python ~/splicedice/code/signature.py fit_beta -s project.sig.tsv -p project.ps.tsv -m manifest.tsv -o project
 python ~/splicedice/code/signature.py query -b project.beta.tsv -p new_samples.ps.tsv -o new_samples
 python ~/splicedice/code/plot.py -q new_samples.pvals.tsv -m new_manifest.tsv
+```
